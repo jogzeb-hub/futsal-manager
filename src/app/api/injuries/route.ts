@@ -26,10 +26,14 @@ export async function PATCH(req: NextRequest) {
   const denied = await requireAdmin();
   if (denied) return denied;
 
-  const { id, recovered } = await req.json();
+  const { id, recovered, description } = await req.json();
+  const data: { recovered?: boolean; description?: string } = {};
+  if (recovered !== undefined) data.recovered = recovered;
+  if (description !== undefined) data.description = description;
+
   const injury = await prisma.injury.update({
     where: { id },
-    data: { recovered },
+    data,
     include: { player: true },
   });
   return NextResponse.json(injury);
