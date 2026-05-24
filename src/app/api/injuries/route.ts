@@ -6,7 +6,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const year = searchParams.get("year");
   const where = year
-    ? { injuryDate: { gte: new Date(`${year}-01-01`), lt: new Date(`${Number(year) + 1}-01-01`) } }
+    ? {
+        OR: [
+          { injuryDate: { gte: new Date(`${year}-01-01`), lt: new Date(`${Number(year) + 1}-01-01`) } },
+          { recoveryDate: null },
+        ],
+      }
     : {};
 
   const injuries = await prisma.injury.findMany({
