@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Player {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  nickname  String?
+  createdAt DateTime @default(now())
+
+  matches   MatchPlayer[]
+  injuries  Injury[]
+  fines     Fine[]
+  mvpAwards Match[]      @relation("MVP")
+}
+
+model Match {
+  id         Int      @id @default(autoincrement())
+  date       DateTime
+  location   String?
+  teamAScore Int      @default(0)
+  teamBScore Int      @default(0)
+  result     String
+  mvpId      Int?
+  createdAt  DateTime @default(now())
+
+  mvp     Player?       @relation("MVP", fields: [mvpId], references: [id])
+  players MatchPlayer[]
+}
+
+model MatchPlayer {
+  id       Int    @id @default(autoincrement())
+  team     String
+  matchId  Int
+  playerId Int
+
+  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([matchId, playerId])
+}
+
+model Injury {
+  id          Int      @id @default(autoincrement())
+  playerId    Int
+  description String
+  date        DateTime @default(now())
+  recovered   Boolean  @default(false)
+
+  player Player @relation(fields: [playerId], references: [id])
+}
+
+model Fine {
+  id       Int      @id @default(autoincrement())
+  playerId Int
+  amount   Int
+  reason   String
+  paid     Boolean  @default(false)
+  date     DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+}
