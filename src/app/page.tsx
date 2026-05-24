@@ -331,7 +331,11 @@ function PlayersTab({ players, loading, onRefresh, isAdmin }: { players: Player[
                       {/* 승률 바 */}
                       <div className="text-right w-16">
                         <div className="text-sm font-bold text-white">
-                          {p.totalMatches === 0 ? "-" : `${winRate(p)}%`}
+                          {sortKey === "matches"
+                            ? `${p.totalMatches}경기`
+                            : sortKey === "wins"
+                            ? `${p.wins}승`
+                            : p.totalMatches === 0 ? "-" : `${winRate(p)}%`}
                         </div>
                         <div className="w-full bg-gray-700 rounded-full h-1.5 mt-0.5">
                           <div
