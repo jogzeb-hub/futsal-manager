@@ -448,7 +448,10 @@ function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefr
     else setTeamB((prev) => prev.filter((x) => x !== id));
   };
 
+  const isFuture = (dateStr: string) => new Date(dateStr) > new Date();
+
   const resultLabel = (m: Match) => {
+    if (isFuture(m.date)) return <span className="text-orange-400 text-sm font-medium">📅 경기예정</span>;
     if (m.result === "draw") return <span className="text-gray-400 text-sm">무승부</span>;
     if (m.result === "A") return <span className="text-green-400 text-sm">A팀 승</span>;
     return <span className="text-blue-400 text-sm">B팀 승</span>;
@@ -626,7 +629,9 @@ function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefr
                   {m.mvp && <div className="text-sm text-yellow-400 mt-1">🌟 MVP: {m.mvp.name}</div>}
                 </div>
                 <div className="text-right ml-4 shrink-0">
-                  <div className="text-2xl font-bold">{m.teamAScore} : {m.teamBScore}</div>
+                  {!isFuture(m.date) && (
+                    <div className="text-2xl font-bold">{m.teamAScore} : {m.teamBScore}</div>
+                  )}
                   {resultLabel(m)}
                   {isAdmin && (
                     <div className="flex gap-2 justify-end mt-1">
