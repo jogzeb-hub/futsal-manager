@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       },
       moms: {
         orderBy: { round: "asc" },
-        ...(dateFilter ? { where: { date: dateFilter } } : {}),
+        ...(dateFilter ? { where: { OR: [{ date: dateFilter }, { date: null }] } } : {}),
       },
     },
     orderBy: { name: "asc" },
