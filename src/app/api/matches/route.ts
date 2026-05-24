@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth";
 
 export async function GET() {
   const matches = await prisma.match.findMany({
@@ -13,8 +14,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { date, location, teamA, teamB, teamAScore, teamBScore, mvpId } =
-    await req.json();
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
+  const { date, location, teamA, teamB, teamAScore, teamBScore, mvpId } = await req.json();
 
   let result = "draw";
   if (teamAScore > teamBScore) result = "A";

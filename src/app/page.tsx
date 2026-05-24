@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 type Player = {
   id: number;
@@ -46,10 +46,69 @@ type Injury = {
 
 type Tab = "players" | "matches" | "fines" | "injuries";
 
+function LoginModal({ onClose, onLogin }: { onClose: () => void; onLogin: () => void }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const login = async () => {
+    setLoading(true);
+    setError("");
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    if (res.ok) {
+      onLogin();
+      onClose();
+    } else {
+      setError("비밀번호가 틀렸습니다.");
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+      <div className="bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-xl">
+        <h2 className="text-lg font-bold mb-1">관리자 로그인</h2>
+        <p className="text-gray-400 text-sm mb-4">관리자만 데이터를 추가·수정·삭제할 수 있습니다.</p>
+        <input
+          ref={inputRef}
+          type="password"
+          className="bg-gray-700 rounded-lg px-4 py-3 w-full outline-none focus:ring-2 ring-green-500 mb-3"
+          placeholder="비밀번호"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && login()}
+        />
+        {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+        <div className="flex gap-2">
+          <button
+            onClick={login}
+            disabled={loading}
+            className="bg-green-600 hover:bg-green-500 flex-1 py-2.5 rounded-lg font-medium disabled:opacity-50"
+          >
+            {loading ? "확인 중..." : "로그인"}
+          </button>
+          <button onClick={onClose} className="bg-gray-700 hover:bg-gray-600 px-5 py-2.5 rounded-lg text-sm">
+            취소
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [tab, setTab] = useState<Tab>("players");
   const [players, setPlayers] = useState<Player[]>([]);
   const [playersLoading, setPlayersLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
 
   const loadPlayers = useCallback(() => {
     setPlayersLoading(true);
@@ -58,7 +117,15 @@ export default function Home() {
       .then((data) => { setPlayers(data); setPlayersLoading(false); });
   }, []);
 
-  useEffect(() => { loadPlayers(); }, [loadPlayers]);
+  useEffect(() => {
+    loadPlayers();
+    fetch("/api/auth").then((r) => r.json()).then((d) => setIsAdmin(d.isAdmin));
+  }, [loadPlayers]);
+
+  const logout = async () => {
+    await fetch("/api/auth", { method: "DELETE" });
+    setIsAdmin(false);
+  };
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "players", label: "👥 선수" },
@@ -69,12 +136,28 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={() => setIsAdmin(true)} />}
+
       <header className="bg-green-700 shadow-lg">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
-          <span className="text-3xl">⚽</span>
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">⚽</span>
+            <div>
+              <h1 className="text-2xl font-bold">덕원고 풋살모임</h1>
+              <p className="text-green-200 text-sm">팀 기록 & 통계</p>
+            </div>
+          </div>
           <div>
-            <h1 className="text-2xl font-bold">덕원고 풋살모임</h1>
-            <p className="text-green-200 text-sm">팀 기록 & 통계</p>
+            {isAdmin ? (
+              <button onClick={logout} className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded-lg text-sm font-medium">
+                🔓 <span>관리자</span>
+                <span className="text-green-200 text-xs ml-1">로그아웃</span>
+              </button>
+            ) : (
+              <button onClick={() => setShowLogin(true)} className="flex items-center gap-1.5 bg-green-800 hover:bg-green-700 px-3 py-1.5 rounded-lg text-sm">
+                🔒 관리자 로그인
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -99,11 +182,11 @@ export default function Home() {
 
       <main className="max-w-5xl mx-auto px-4 py-6">
         {tab === "players" && (
-          <PlayersTab players={players} loading={playersLoading} onRefresh={loadPlayers} />
+          <PlayersTab players={players} loading={playersLoading} onRefresh={loadPlayers} isAdmin={isAdmin} />
         )}
-        {tab === "matches" && <MatchesTab players={players} onRefresh={loadPlayers} />}
-        {tab === "fines" && <FinesTab players={players} />}
-        {tab === "injuries" && <InjuriesTab players={players} />}
+        {tab === "matches" && <MatchesTab players={players} onRefresh={loadPlayers} isAdmin={isAdmin} />}
+        {tab === "fines" && <FinesTab players={players} isAdmin={isAdmin} />}
+        {tab === "injuries" && <InjuriesTab players={players} isAdmin={isAdmin} />}
       </main>
     </div>
   );
@@ -111,9 +194,9 @@ export default function Home() {
 
 /* ───────── 선수 탭 ───────── */
 function PlayersTab({
-  players, loading, onRefresh,
+  players, loading, onRefresh, isAdmin,
 }: {
-  players: Player[]; loading: boolean; onRefresh: () => void;
+  players: Player[]; loading: boolean; onRefresh: () => void; isAdmin: boolean;
 }) {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -159,15 +242,17 @@ function PlayersTab({
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">선수 목록 ({players.length}명)</h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium"
-        >
-          + 선수 등록
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium"
+          >
+            + 선수 등록
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {isAdmin && showForm && (
         <div className="bg-gray-800 rounded-xl p-4 mb-4">
           <h3 className="text-sm font-medium text-gray-400 mb-3">새 선수 등록</h3>
           <div className="flex gap-3 flex-wrap">
@@ -233,20 +318,22 @@ function PlayersTab({
                       </div>
                       {p.nickname && <p className="text-gray-400 text-sm">"{p.nickname}"</p>}
                     </div>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => { setEditId(p.id); setEditName(p.name); setEditNickname(p.nickname ?? ""); }}
-                        className="text-gray-500 hover:text-white p-1 rounded text-xs"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => deletePlayer(p.id, p.name)}
-                        className="text-gray-500 hover:text-red-400 p-1 rounded text-xs"
-                      >
-                        🗑️
-                      </button>
-                    </div>
+                    {isAdmin && (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => { setEditId(p.id); setEditName(p.name); setEditNickname(p.nickname ?? ""); }}
+                          className="text-gray-500 hover:text-white p-1 rounded text-xs"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => deletePlayer(p.id, p.name)}
+                          className="text-gray-500 hover:text-red-400 p-1 rounded text-xs"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-4 gap-2 text-center text-sm mb-3">
@@ -289,7 +376,7 @@ function PlayersTab({
 }
 
 /* ───────── 경기 탭 ───────── */
-function MatchesTab({ players, onRefresh }: { players: Player[]; onRefresh: () => void }) {
+function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefresh: () => void; isAdmin: boolean }) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
@@ -352,12 +439,14 @@ function MatchesTab({ players, onRefresh }: { players: Player[]; onRefresh: () =
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">경기 기록 ({matches.length}경기)</h2>
-        <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium">
-          + 경기 추가
-        </button>
+        {isAdmin && (
+          <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium">
+            + 경기 추가
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {isAdmin && showForm && (
         <div className="bg-gray-800 rounded-xl p-5 mb-4 space-y-4">
           <h3 className="font-medium text-gray-300">새 경기 기록</h3>
 
@@ -467,7 +556,7 @@ function MatchesTab({ players, onRefresh }: { players: Player[]; onRefresh: () =
                 <div className="text-right ml-4">
                   <div className="text-2xl font-bold">{m.teamAScore} : {m.teamBScore}</div>
                   {resultLabel(m)}
-                  <button onClick={() => deleteMatch(m.id)} className="text-gray-600 hover:text-red-400 text-xs mt-1 block ml-auto">삭제</button>
+                  {isAdmin && <button onClick={() => deleteMatch(m.id)} className="text-gray-600 hover:text-red-400 text-xs mt-1 block ml-auto">삭제</button>}
                 </div>
               </div>
             </div>
@@ -479,7 +568,7 @@ function MatchesTab({ players, onRefresh }: { players: Player[]; onRefresh: () =
 }
 
 /* ───────── 벌금 탭 ───────── */
-function FinesTab({ players }: { players: Player[] }) {
+function FinesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean }) {
   const [fines, setFines] = useState<Fine[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [playerId, setPlayerId] = useState<number | "">("");
@@ -533,12 +622,14 @@ function FinesTab({ players }: { players: Player[] }) {
             <span className="text-red-400">미납 {unpaid.toLocaleString()}원</span>
           </div>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium">
-          + 벌금 추가
-        </button>
+        {isAdmin && (
+          <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium">
+            + 벌금 추가
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {isAdmin && showForm && (
         <div className="bg-gray-800 rounded-xl p-4 mb-4 space-y-3">
           <h3 className="text-sm font-medium text-gray-400">벌금 기록 추가</h3>
           <div className="flex gap-3 flex-wrap">
@@ -589,17 +680,24 @@ function FinesTab({ players }: { players: Player[] }) {
                 </div>
                 <div className="text-sm text-gray-400 truncate">{f.reason} · {new Date(f.date).toLocaleDateString("ko-KR")}</div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => togglePaid(f.id, f.paid)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-                    f.paid ? "bg-gray-700 text-gray-400 hover:bg-gray-600" : "bg-yellow-700 text-yellow-200 hover:bg-yellow-600"
-                  }`}
-                >
+              {isAdmin && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => togglePaid(f.id, f.paid)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+                      f.paid ? "bg-gray-700 text-gray-400 hover:bg-gray-600" : "bg-yellow-700 text-yellow-200 hover:bg-yellow-600"
+                    }`}
+                  >
+                    {f.paid ? "납부완료" : "미납"}
+                  </button>
+                  <button onClick={() => deleteFine(f.id)} className="text-gray-600 hover:text-red-400 text-sm">🗑️</button>
+                </div>
+              )}
+              {!isAdmin && (
+                <span className={`px-3 py-1.5 rounded-full text-xs font-medium shrink-0 ${f.paid ? "bg-gray-700 text-gray-400" : "bg-yellow-900 text-yellow-300"}`}>
                   {f.paid ? "납부완료" : "미납"}
-                </button>
-                <button onClick={() => deleteFine(f.id)} className="text-gray-600 hover:text-red-400 text-sm">🗑️</button>
-              </div>
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -609,7 +707,7 @@ function FinesTab({ players }: { players: Player[] }) {
 }
 
 /* ───────── 부상 탭 ───────── */
-function InjuriesTab({ players }: { players: Player[] }) {
+function InjuriesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean }) {
   const [injuries, setInjuries] = useState<Injury[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [playerId, setPlayerId] = useState<number | "">("");
@@ -659,12 +757,14 @@ function InjuriesTab({ players }: { players: Player[] }) {
             <p className="text-sm text-red-400 mt-1">부상 중 {active.length}명</p>
           )}
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium">
-          + 부상 기록
-        </button>
+        {isAdmin && (
+          <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium">
+            + 부상 기록
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {isAdmin && showForm && (
         <div className="bg-gray-800 rounded-xl p-4 mb-4 space-y-3">
           <h3 className="text-sm font-medium text-gray-400">부상 기록 추가</h3>
           <div className="flex gap-3 flex-wrap">
@@ -702,7 +802,7 @@ function InjuriesTab({ players }: { players: Player[] }) {
               <h3 className="text-sm font-medium text-red-400 mb-2">부상 중</h3>
               <div className="space-y-2">
                 {active.map((i) => (
-                  <InjuryCard key={i.id} injury={i} onToggle={toggleRecovered} onDelete={deleteInjury} />
+                  <InjuryCard key={i.id} injury={i} onToggle={toggleRecovered} onDelete={deleteInjury} isAdmin={isAdmin} />
                 ))}
               </div>
             </div>
@@ -712,7 +812,7 @@ function InjuriesTab({ players }: { players: Player[] }) {
               <h3 className="text-sm font-medium text-gray-500 mb-2">회복 완료</h3>
               <div className="space-y-2">
                 {recovered.map((i) => (
-                  <InjuryCard key={i.id} injury={i} onToggle={toggleRecovered} onDelete={deleteInjury} />
+                  <InjuryCard key={i.id} injury={i} onToggle={toggleRecovered} onDelete={deleteInjury} isAdmin={isAdmin} />
                 ))}
               </div>
             </div>
@@ -724,11 +824,12 @@ function InjuriesTab({ players }: { players: Player[] }) {
 }
 
 function InjuryCard({
-  injury: i, onToggle, onDelete,
+  injury: i, onToggle, onDelete, isAdmin,
 }: {
   injury: Injury;
   onToggle: (id: number, recovered: boolean) => void;
   onDelete: (id: number) => void;
+  isAdmin: boolean;
 }) {
   return (
     <div className={`bg-gray-800 rounded-xl p-4 flex justify-between items-center gap-3 ${i.recovered ? "opacity-60" : ""}`}>
@@ -739,17 +840,23 @@ function InjuryCard({
         </div>
         <div className="text-sm text-gray-400 truncate">{i.description} · {new Date(i.date).toLocaleDateString("ko-KR")}</div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={() => onToggle(i.id, i.recovered)}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-            i.recovered ? "bg-gray-700 text-gray-400 hover:bg-gray-600" : "bg-red-800 text-red-200 hover:bg-red-700"
-          }`}
-        >
+      {isAdmin ? (
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => onToggle(i.id, i.recovered)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+              i.recovered ? "bg-gray-700 text-gray-400 hover:bg-gray-600" : "bg-red-800 text-red-200 hover:bg-red-700"
+            }`}
+          >
+            {i.recovered ? "회복완료" : "부상 중"}
+          </button>
+          <button onClick={() => onDelete(i.id)} className="text-gray-600 hover:text-red-400 text-sm">🗑️</button>
+        </div>
+      ) : (
+        <span className={`px-3 py-1.5 rounded-full text-xs font-medium shrink-0 ${i.recovered ? "bg-gray-700 text-gray-400" : "bg-red-900 text-red-300"}`}>
           {i.recovered ? "회복완료" : "부상 중"}
-        </button>
-        <button onClick={() => onDelete(i.id)} className="text-gray-600 hover:text-red-400 text-sm">🗑️</button>
-      </div>
+        </span>
+      )}
     </div>
   );
 }

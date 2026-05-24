@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth";
 
 export async function GET() {
   const players = await prisma.player.findMany({
@@ -50,6 +51,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   const { name, nickname } = await req.json();
   if (!name) return NextResponse.json({ error: "이름 필수" }, { status: 400 });
 
