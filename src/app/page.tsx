@@ -103,13 +103,11 @@ export default function Home() {
   const [playersLoading, setPlayersLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
-  const [season, setSeason] = useState(String(new Date().getFullYear()));
 
   const loadPlayers = useCallback(() => {
     setPlayersLoading(true);
-    const url = season === "all" ? "/api/players" : `/api/players?year=${season}`;
-    fetch(url).then((r) => r.json()).then((data) => { setPlayers(data); setPlayersLoading(false); });
-  }, [season]);
+    fetch("/api/players").then((r) => r.json()).then((data) => { setPlayers(data); setPlayersLoading(false); });
+  }, []);
 
   useEffect(() => {
     loadPlayers();
@@ -164,23 +162,15 @@ export default function Home() {
               {label}
             </button>
           ))}
-          <div className="ml-auto flex bg-gray-800 rounded-lg p-1 gap-1">
-            {[String(new Date().getFullYear()), "all"].map((s) => (
-              <button key={s} onClick={() => setSeason(s)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${season === s ? "bg-green-600 text-white" : "text-gray-400 hover:text-white"}`}>
-                {s === "all" ? "전체" : `${s}시즌`}
-              </button>
-            ))}
-          </div>
         </div>
       </nav>
 
       <main className="max-w-5xl mx-auto px-4 py-6">
-        {tab === "players" && <PlayersTab players={players} loading={playersLoading} onRefresh={loadPlayers} isAdmin={isAdmin} season={season} />}
-        {tab === "matches" && <MatchesTab players={players} onRefresh={loadPlayers} isAdmin={isAdmin} season={season} />}
-        {tab === "fines" && <FinesTab players={players} isAdmin={isAdmin} season={season} />}
-        {tab === "injuries" && <InjuriesTab players={players} isAdmin={isAdmin} season={season} />}
-        {tab === "mom" && <MOMTab players={players} isAdmin={isAdmin} season={season} />}
+        {tab === "players" && <PlayersTab players={players} loading={playersLoading} onRefresh={loadPlayers} isAdmin={isAdmin} />}
+        {tab === "matches" && <MatchesTab players={players} onRefresh={loadPlayers} isAdmin={isAdmin} />}
+        {tab === "fines" && <FinesTab players={players} isAdmin={isAdmin} />}
+        {tab === "injuries" && <InjuriesTab players={players} isAdmin={isAdmin} />}
+        {tab === "mom" && <MOMTab players={players} isAdmin={isAdmin} />}
       </main>
     </div>
   );
@@ -189,7 +179,7 @@ export default function Home() {
 type SortKey = "matches" | "winRate" | "wins" | "mom";
 
 /* ───────── 통계 탭 ───────── */
-function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players: Player[]; loading: boolean; onRefresh: () => void; isAdmin: boolean; season: string }) {
+function PlayersTab({ players, loading, onRefresh, isAdmin }: { players: Player[]; loading: boolean; onRefresh: () => void; isAdmin: boolean }) {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [nickname, setNickname] = useState("");
@@ -314,7 +304,7 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
     <div>
       {/* 헤더 */}
       <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
-        <h2 className="text-xl font-bold">선수 통계 ({players.length}명) <span className="text-sm font-normal text-gray-400">{season === "all" ? "전체" : `${season}시즌`}</span></h2>
+        <h2 className="text-xl font-bold">선수 통계 ({players.length}명)</h2>
         <div className="flex items-center gap-2 flex-wrap">
           {/* 정렬 버튼 */}
           <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
@@ -444,7 +434,7 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
 }
 
 /* ───────── 경기 탭 ───────── */
-function MatchesTab({ players, onRefresh, isAdmin, season }: { players: Player[]; onRefresh: () => void; isAdmin: boolean; season: string }) {
+function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefresh: () => void; isAdmin: boolean }) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -462,9 +452,8 @@ function MatchesTab({ players, onRefresh, isAdmin, season }: { players: Player[]
 
   const load = useCallback(() => {
     setMatchesLoading(true);
-    const url = season === "all" ? "/api/matches" : `/api/matches?year=${season}`;
-    fetch(url).then((r) => r.json()).then((data) => { setMatches(data); setMatchesLoading(false); });
-  }, [season]);
+    fetch("/api/matches").then((r) => r.json()).then((data) => { setMatches(data); setMatchesLoading(false); });
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -731,7 +720,7 @@ function MatchesTab({ players, onRefresh, isAdmin, season }: { players: Player[]
 }
 
 /* ───────── 벌금 탭 ───────── */
-function FinesTab({ players, isAdmin, season }: { players: Player[]; isAdmin: boolean; season: string }) {
+function FinesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean }) {
   const [fines, setFines] = useState<Fine[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -740,9 +729,8 @@ function FinesTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bo
   const [reason, setReason] = useState("");
 
   const load = useCallback(() => {
-    const url = season === "all" ? "/api/fines" : `/api/fines?year=${season}`;
-    fetch(url).then((r) => r.json()).then(setFines);
-  }, [season]);
+    fetch("/api/fines").then((r) => r.json()).then(setFines);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -841,7 +829,7 @@ function FinesTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bo
 }
 
 /* ───────── 부상 탭 ───────── */
-function InjuriesTab({ players, isAdmin, season }: { players: Player[]; isAdmin: boolean; season: string }) {
+function InjuriesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean }) {
   const today = new Date().toISOString().split("T")[0];
   const [injuries, setInjuries] = useState<Injury[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -856,9 +844,8 @@ function InjuriesTab({ players, isAdmin, season }: { players: Player[]; isAdmin:
   const [editRecoveryDate, setEditRecoveryDate] = useState("");
 
   const load = useCallback(() => {
-    const url = season === "all" ? "/api/injuries" : `/api/injuries?year=${season}`;
-    fetch(url).then((r) => r.json()).then(setInjuries);
-  }, [season]);
+    fetch("/api/injuries").then((r) => r.json()).then(setInjuries);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1096,7 +1083,7 @@ type BallonDorEntry = {
   momCount: number;
 };
 
-function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: boolean; season: string }) {
+function MOMTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean }) {
   const [moms, setMoms] = useState<MOMEntry[]>([]);
   const [allBallonDors, setAllBallonDors] = useState<BallonDorEntry[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -1114,9 +1101,8 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
   const [newBdYear, setNewBdYear] = useState(String(new Date().getFullYear()));
 
   const loadMoms = useCallback(() => {
-    const url = season === "all" ? "/api/mom" : `/api/mom?year=${season}`;
-    fetch(url).then((r) => r.json()).then(setMoms);
-  }, [season]);
+    fetch("/api/mom").then((r) => r.json()).then(setMoms);
+  }, []);
 
   const loadBallonDors = useCallback(() => {
     fetch("/api/ballondor").then((r) => r.json()).then(setAllBallonDors);
@@ -1264,7 +1250,7 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
 
       {/* MOM 목록 */}
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold">MOM 기록 <span className="text-sm font-normal text-gray-400">{season === "all" ? "전체" : `${season}시즌`}</span></h2>
+        <h2 className="text-xl font-bold">MOM 기록</h2>
         {isAdmin && (
           <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium">+ MOM 추가</button>
         )}
