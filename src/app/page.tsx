@@ -16,7 +16,7 @@ type Player = {
   unpaidFines: number;
   hasInjury: boolean;
   injuryDays: number | null;
-  isBallonDor: boolean;
+  ballonDorYears: number[];
 };
 
 type Match = {
@@ -344,7 +344,11 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold">{p.name}</span>
-                        {p.isBallonDor && <span className="text-yellow-400 text-xs font-medium">🏆 발롱도르</span>}
+                        {p.ballonDorYears.length > 0 && (
+                          <span className="text-yellow-400 text-xs font-medium">
+                            🏆 {p.ballonDorYears.map((y) => `${y}발롱도르`).join(" · ")}
+                          </span>
+                        )}
                         {p.nickname && <span className="text-gray-400 text-xs">({p.nickname})</span>}
                         {p.hasInjury && (
                           <span className="text-sm text-red-500 font-bold">✚ 부상 {p.injuryDays}일째</span>
@@ -1080,8 +1084,8 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
   const [editPlayerId, setEditPlayerId] = useState<number | "">("");
   const [editingBallonDorYear, setEditingBallonDorYear] = useState<number | null>(null);
   const [ballonDorPlayerId, setBallonDorPlayerId] = useState<number | "">("");
-
-  const targetYear = season === "all" ? null : Number(season);
+  const [showBdForm, setShowBdForm] = useState(false);
+  const [newBdYear, setNewBdYear] = useState(String(new Date().getFullYear()));
 
   const loadMoms = useCallback(() => {
     const url = season === "all" ? "/api/mom" : `/api/mom?year=${season}`;
@@ -1143,7 +1147,7 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ year, playerId: ballonDorPlayerId }),
     });
-    setEditingBallonDorYear(null); setBallonDorPlayerId("");
+    setEditingBallonDorYear(null); setBallonDorPlayerId(""); setShowBdForm(false);
     loadBallonDors();
     setSaving(false);
   };
@@ -1152,8 +1156,6 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
     await fetch(`/api/ballondor?year=${year}`, { method: "DELETE" });
     loadBallonDors();
   };
-
-  const currentWinner = allBallonDors.find((b) => b.year === targetYear);
 
   const groupedMoms: { round: number; date: string | null; entries: MOMEntry[] }[] = [];
   [...moms].sort((a, b) => b.round - a.round).forEach((m) => {
@@ -1164,28 +1166,33 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
 
   return (
     <div>
-      {/* 발롱도르 이력 */}
+      {/* 발롱도르 */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-3">
-          <h3 className="font-bold text-yellow-400 flex items-center gap-2">🏆 발롱도르 수상 이력</h3>
-          {isAdmin && targetYear && !currentWinner && editingBallonDorYear !== targetYear && (
-            <button onClick={() => { setEditingBallonDorYear(targetYear); setBallonDorPlayerId(""); }}
+          <h3 className="font-bold text-yellow-400 flex items-center gap-2">🏆 발롱도르</h3>
+          {isAdmin && !showBdForm && (
+            <button onClick={() => { setShowBdForm(true); setBallonDorPlayerId(""); }}
               className="bg-yellow-700 hover:bg-yellow-600 px-3 py-1.5 rounded-lg text-xs font-medium">
-              {targetYear}시즌 선정
+              발롱도르 선정
             </button>
           )}
         </div>
 
-        {isAdmin && editingBallonDorYear === targetYear && (
+        {isAdmin && showBdForm && (
           <div className="bg-yellow-900/30 border border-yellow-700/40 rounded-xl px-4 py-3 mb-3 flex items-center gap-3 flex-wrap">
-            <span className="text-yellow-400 text-sm font-medium">{targetYear}시즌 발롱도르 선정</span>
+            <span className="text-yellow-400 text-sm font-medium shrink-0">발롱도르 선정</span>
+            <input type="number" className="bg-gray-700 rounded-lg px-2 py-1.5 text-sm w-24 outline-none focus:ring-2 ring-yellow-500"
+              placeholder="연도" value={newBdYear} onChange={(e) => setNewBdYear(e.target.value)} />
             <select className="bg-gray-700 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 ring-yellow-500 flex-1 min-w-36"
               value={ballonDorPlayerId} onChange={(e) => setBallonDorPlayerId(Number(e.target.value))}>
               <option value="">선수 선택</option>
               {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
-            <button onClick={() => saveBallonDor(targetYear!)} disabled={saving} className="bg-yellow-600 hover:bg-yellow-500 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
-            <button onClick={() => setEditingBallonDorYear(null)} className="text-gray-400 hover:text-white text-xs">취소</button>
+            <button onClick={() => saveBallonDor(Number(newBdYear))} disabled={saving || !newBdYear || !ballonDorPlayerId}
+              className="bg-yellow-600 hover:bg-yellow-500 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50">
+              {saving ? "저장 중..." : "저장"}
+            </button>
+            <button onClick={() => { setShowBdForm(false); setBallonDorPlayerId(""); }} className="text-gray-400 hover:text-white text-xs">취소</button>
           </div>
         )}
 
