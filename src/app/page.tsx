@@ -241,8 +241,13 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
 
   const sorted = [...players].sort((a, b) => {
     if (sortKey === "matches") return b.totalMatches - a.totalMatches;
-    if (sortKey === "wins") return b.wins - a.wins;
-    return winRate(b) - winRate(a);
+    if (sortKey === "wins") {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      return b.totalMatches - a.totalMatches;
+    }
+    const diff = winRate(b) - winRate(a);
+    if (diff !== 0) return diff;
+    return b.totalMatches - a.totalMatches;
   });
 
   const sortBtns: { key: SortKey; label: string }[] = [
