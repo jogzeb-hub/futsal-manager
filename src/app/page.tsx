@@ -186,7 +186,7 @@ export default function Home() {
   );
 }
 
-type SortKey = "matches" | "winRate" | "wins";
+type SortKey = "matches" | "winRate" | "wins" | "mom";
 
 /* ───────── 통계 탭 ───────── */
 function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players: Player[]; loading: boolean; onRefresh: () => void; isAdmin: boolean; season: string }) {
@@ -235,12 +235,17 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
 
   const maxMatches = Math.max(...players.map((p) => p.totalMatches), 1);
   const maxWins = Math.max(...players.map((p) => p.wins), 1);
+  const maxMoms = Math.max(...players.map((p) => p.momCount), 1);
 
   const gaugeWidth = (p: Player) => {
     if (sortKey === "matches") return Math.round((p.totalMatches / maxMatches) * 100);
     if (sortKey === "wins") return Math.round((p.wins / maxWins) * 100);
+    if (sortKey === "mom") return Math.round((p.momCount / maxMoms) * 100);
     return winRate(p);
   };
+
+  const SPECIAL_NICKNAMES = ["스페셜게스트", "휴면"];
+  const isSpecial = (p: Player) => p.nickname !== null && SPECIAL_NICKNAMES.includes(p.nickname);
 
   const sorted = [...players].sort((a, b) => {
     if (sortKey === "matches") return b.totalMatches - a.totalMatches;
@@ -248,18 +253,28 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
       if (b.wins !== a.wins) return b.wins - a.wins;
       return b.totalMatches - a.totalMatches;
     }
+    if (sortKey === "mom") {
+      if (b.momCount !== a.momCount) return b.momCount - a.momCount;
+      return b.totalMatches - a.totalMatches;
+    }
     const diff = winRate(b) - winRate(a);
     if (diff !== 0) return diff;
     return b.totalMatches - a.totalMatches;
   });
 
+  const regularPlayers = sorted.filter((p) => !isSpecial(p));
+  const specialPlayers = sorted.filter((p) => isSpecial(p));
+  const finalSorted = [...regularPlayers, ...specialPlayers];
+
   const sortBtns: { key: SortKey; label: string }[] = [
     { key: "matches", label: "경기수" },
     { key: "winRate", label: "승률" },
     { key: "wins", label: "승리" },
+    { key: "mom", label: "MOM" },
   ];
 
-  const rankIcon = (i: number) => {
+  const rankIcon = (p: Player, i: number) => {
+    if (isSpecial(p)) return <span className="text-xs text-gray-600">-</span>;
     if (i === 0) return "🥇";
     if (i === 1) return "🥈";
     if (i === 2) return "🥉";
@@ -308,7 +323,7 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
         <div className="text-center py-20 text-gray-500"><div className="text-5xl mb-3">👥</div><p>선수를 등록해보세요!</p></div>
       ) : (
         <div className="space-y-2">
-          {sorted.map((p, i) => (
+          {finalSorted.map((p, i) => (
             <div key={p.id} className="bg-gray-800 rounded-xl overflow-hidden">
               {editId === p.id ? (
                 <div className="p-4 space-y-2">
@@ -323,7 +338,7 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
                 <div className="p-4">
                   <div className="flex items-center gap-3">
                     {/* 순위 */}
-                    <div className="text-lg w-8 text-center shrink-0">{rankIcon(i)}</div>
+                    <div className="text-lg w-8 text-center shrink-0">{rankIcon(p, i)}</div>
 
                     {/* 이름 */}
                     <div className="flex-1 min-w-0">
@@ -332,7 +347,7 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
                         {p.isBallonDor && <span className="text-yellow-400 text-xs font-medium">🏆 발롱도르</span>}
                         {p.nickname && <span className="text-gray-400 text-xs">({p.nickname})</span>}
                         {p.hasInjury && (
-                          <span className="text-sm text-red-500 font-bold">✚ {p.injuryDays}일째</span>
+                          <span className="text-sm text-red-500 font-bold">✚ 부상 {p.injuryDays}일째</span>
                         )}
                         {p.unpaidFines > 0 && <span title="미납 벌금" className="text-sm">💸</span>}
                       </div>
@@ -367,6 +382,8 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
                             ? `${p.totalMatches}경기`
                             : sortKey === "wins"
                             ? `${p.wins}승`
+                            : sortKey === "mom"
+                            ? `${p.momCount}회`
                             : p.totalMatches === 0 ? "-" : `${winRate(p)}%`}
                         </div>
                         <div className="w-full bg-gray-700 rounded-full h-1.5 mt-0.5">
@@ -1044,9 +1061,17 @@ type MOMEntry = {
   player: { id: number; name: string };
 };
 
+type BallonDorEntry = {
+  id: number;
+  year: number;
+  playerId: number;
+  player: { name: string };
+  momCount: number;
+};
+
 function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: boolean; season: string }) {
   const [moms, setMoms] = useState<MOMEntry[]>([]);
-  const [ballonDorWinner, setBallonDorWinner] = useState<{ playerId: number; player: { name: string } } | null>(null);
+  const [allBallonDors, setAllBallonDors] = useState<BallonDorEntry[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [round, setRound] = useState("");
@@ -1056,20 +1081,23 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
   const [editRound, setEditRound] = useState("");
   const [editDate, setEditDate] = useState("");
   const [editPlayerId, setEditPlayerId] = useState<number | "">("");
-  const [showBallonDorSelect, setShowBallonDorSelect] = useState(false);
+  const [editingBallonDorYear, setEditingBallonDorYear] = useState<number | null>(null);
   const [ballonDorPlayerId, setBallonDorPlayerId] = useState<number | "">("");
 
-  const load = useCallback(() => {
+  const currentYear = new Date().getFullYear();
+  const targetYear = season === "all" ? null : Number(season);
+
+  const loadMoms = useCallback(() => {
     const url = season === "all" ? "/api/mom" : `/api/mom?year=${season}`;
     fetch(url).then((r) => r.json()).then(setMoms);
   }, [season]);
 
-  useEffect(() => { load(); }, [load]);
+  const loadBallonDors = useCallback(() => {
+    fetch("/api/ballondor").then((r) => r.json()).then(setAllBallonDors);
+  }, []);
 
-  useEffect(() => {
-    if (season === "all") { setBallonDorWinner(null); return; }
-    fetch(`/api/ballondor?year=${season}`).then((r) => r.json()).then((d) => setBallonDorWinner(d || null));
-  }, [season]);
+  useEffect(() => { loadMoms(); }, [loadMoms]);
+  useEffect(() => { loadBallonDors(); }, [loadBallonDors]);
 
   const addMOM = async () => {
     if (!round || !playerId || saving) return;
@@ -1080,7 +1108,7 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
       body: JSON.stringify({ round: Number(round), date: date || null, playerId }),
     });
     setShowForm(false); setRound(""); setDate(""); setPlayerId("");
-    load();
+    loadMoms();
     setSaving(false);
   };
 
@@ -1093,74 +1121,103 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
       body: JSON.stringify({ id: editId, round: Number(editRound), date: editDate || null, playerId: editPlayerId }),
     });
     setEditId(null);
-    load();
+    loadMoms();
     setSaving(false);
   };
 
   const deleteMOM = async (id: number) => {
     if (!confirm("MOM 기록을 삭제할까요?")) return;
     await fetch("/api/mom", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-    load();
+    loadMoms();
   };
 
-  const saveBallonDor = async () => {
+  const saveBallonDor = async (year: number) => {
     if (!ballonDorPlayerId || saving) return;
     setSaving(true);
     await fetch("/api/ballondor", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ year: Number(season), playerId: ballonDorPlayerId }),
+      body: JSON.stringify({ year, playerId: ballonDorPlayerId }),
     });
-    const res = await fetch(`/api/ballondor?year=${season}`);
-    setBallonDorWinner(await res.json());
-    setShowBallonDorSelect(false); setBallonDorPlayerId("");
+    setEditingBallonDorYear(null); setBallonDorPlayerId("");
+    loadBallonDors();
     setSaving(false);
   };
 
-  const deleteBallonDor = async () => {
-    await fetch(`/api/ballondor?year=${season}`, { method: "DELETE" });
-    setBallonDorWinner(null);
+  const deleteBallonDor = async (year: number) => {
+    await fetch(`/api/ballondor?year=${year}`, { method: "DELETE" });
+    loadBallonDors();
   };
+
+  const currentWinner = allBallonDors.find((b) => b.year === targetYear);
 
   return (
     <div>
-      {/* 발롱도르 */}
-      {season !== "all" && (
-        <div className="bg-yellow-900/40 border border-yellow-700/50 rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🏆</span>
-            <div>
-              <div className="text-xs text-yellow-500 font-medium">{season}시즌 발롱도르</div>
-              <div className="font-bold text-yellow-300">
-                {ballonDorWinner ? ballonDorWinner.player.name : <span className="text-yellow-700 font-normal">미선정</span>}
-              </div>
-            </div>
-          </div>
-          {isAdmin && (
-            <div className="flex items-center gap-2 shrink-0">
-              {showBallonDorSelect ? (
-                <>
-                  <select className="bg-gray-700 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 ring-yellow-500"
-                    value={ballonDorPlayerId} onChange={(e) => setBallonDorPlayerId(Number(e.target.value))}>
-                    <option value="">선수 선택</option>
-                    {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                  <button onClick={saveBallonDor} disabled={saving} className="bg-yellow-600 hover:bg-yellow-500 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
-                  <button onClick={() => setShowBallonDorSelect(false)} className="text-gray-400 hover:text-white text-xs px-2">취소</button>
-                </>
-              ) : (
-                <>
-                  <button onClick={() => { setShowBallonDorSelect(true); setBallonDorPlayerId(ballonDorWinner?.playerId ?? ""); }}
-                    className="bg-yellow-700 hover:bg-yellow-600 px-3 py-1.5 rounded-lg text-xs font-medium">
-                    {ballonDorWinner ? "변경" : "선정"}
-                  </button>
-                  {ballonDorWinner && <button onClick={deleteBallonDor} className="text-gray-500 hover:text-red-400 text-sm">🗑️</button>}
-                </>
-              )}
-            </div>
+      {/* 발롱도르 이력 */}
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="font-bold text-yellow-400 flex items-center gap-2">🏆 발롱도르 수상 이력</h3>
+          {isAdmin && targetYear && !currentWinner && editingBallonDorYear !== targetYear && (
+            <button onClick={() => { setEditingBallonDorYear(targetYear); setBallonDorPlayerId(""); }}
+              className="bg-yellow-700 hover:bg-yellow-600 px-3 py-1.5 rounded-lg text-xs font-medium">
+              {targetYear}시즌 선정
+            </button>
           )}
         </div>
-      )}
+
+        {/* 현재 시즌 선정 폼 */}
+        {isAdmin && editingBallonDorYear === targetYear && (
+          <div className="bg-yellow-900/30 border border-yellow-700/40 rounded-xl px-4 py-3 mb-3 flex items-center gap-3 flex-wrap">
+            <span className="text-yellow-400 text-sm font-medium">{targetYear}시즌 발롱도르 선정</span>
+            <select className="bg-gray-700 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 ring-yellow-500 flex-1 min-w-36"
+              value={ballonDorPlayerId} onChange={(e) => setBallonDorPlayerId(Number(e.target.value))}>
+              <option value="">선수 선택</option>
+              {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <button onClick={() => saveBallonDor(targetYear!)} disabled={saving} className="bg-yellow-600 hover:bg-yellow-500 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
+            <button onClick={() => setEditingBallonDorYear(null)} className="text-gray-400 hover:text-white text-xs">취소</button>
+          </div>
+        )}
+
+        {allBallonDors.length === 0 ? (
+          <div className="text-gray-600 text-sm py-4 text-center">수상 이력이 없습니다.</div>
+        ) : (
+          <div className="space-y-2">
+            {allBallonDors.map((bd) => (
+              <div key={bd.id} className="bg-yellow-900/20 border border-yellow-800/40 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🏆</span>
+                  <div>
+                    <div className="font-bold text-yellow-200">{bd.player.name}</div>
+                    <div className="text-xs text-yellow-600">{bd.year}발롱도르 · MOM {bd.momCount}회</div>
+                  </div>
+                </div>
+                {isAdmin && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    {editingBallonDorYear === bd.year ? (
+                      <>
+                        <select className="bg-gray-700 rounded-lg px-2 py-1 text-sm outline-none focus:ring-2 ring-yellow-500"
+                          value={ballonDorPlayerId} onChange={(e) => setBallonDorPlayerId(Number(e.target.value))}>
+                          <option value="">선수 선택</option>
+                          {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        <button onClick={() => saveBallonDor(bd.year)} disabled={saving} className="bg-yellow-600 hover:bg-yellow-500 px-2 py-1 rounded-lg text-xs disabled:opacity-50">{saving ? "..." : "저장"}</button>
+                        <button onClick={() => setEditingBallonDorYear(null)} className="text-gray-400 hover:text-white text-xs">취소</button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => { setEditingBallonDorYear(bd.year); setBallonDorPlayerId(bd.playerId); }}
+                          className="text-gray-500 hover:text-white text-sm">✏️</button>
+                        <button onClick={() => deleteBallonDor(bd.year)} className="text-gray-600 hover:text-red-400 text-sm">🗑️</button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* MOM 목록 */}
       <div className="flex justify-between items-center mb-4">
@@ -1192,7 +1249,7 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
       )}
 
       {moms.length === 0 ? (
-        <div className="text-center py-20 text-gray-500"><div className="text-5xl mb-3">🌟</div><p>MOM 기록이 없습니다.</p></div>
+        <div className="text-center py-16 text-gray-500"><div className="text-5xl mb-3">🌟</div><p>MOM 기록이 없습니다.</p></div>
       ) : (
         <div className="space-y-2">
           {[...moms].sort((a, b) => b.round - a.round).map((m) => (

@@ -18,7 +18,22 @@ export async function GET(req: NextRequest) {
     include: { player: true },
     orderBy: { year: "desc" },
   });
-  return NextResponse.json(all);
+
+  const withMomCount = await Promise.all(
+    all.map(async (bd) => {
+      const momCount = await prisma.mOM.count({
+        where: {
+          playerId: bd.playerId,
+          date: {
+            gte: new Date(`${bd.year}-01-01`),
+            lt: new Date(`${bd.year + 1}-01-01`),
+          },
+        },
+      });
+      return { ...bd, momCount };
+    })
+  );
+  return NextResponse.json(withMomCount);
 }
 
 export async function POST(req: NextRequest) {
