@@ -47,11 +47,11 @@ model MatchPlayer {
 }
 
 model Injury {
-  id          Int      @id @default(autoincrement())
-  playerId    Int
-  description String
-  date        DateTime @default(now())
-  recovered   Boolean  @default(false)
+  id           Int       @id @default(autoincrement())
+  playerId     Int
+  description  String
+  injuryDate   DateTime  @default(now())
+  recoveryDate DateTime?
 
   player Player @relation(fields: [playerId], references: [id])
 }

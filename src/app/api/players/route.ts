@@ -43,7 +43,7 @@ export async function GET() {
       mvpDates: player.mvpAwards.map((m) => m.date.toISOString().split("T")[0]),
       totalFines,
       unpaidFines,
-      hasInjury: player.injuries.some((i) => !i.recovered),
+      hasInjury: player.injuries.some((i) => i.recoveryDate === null),
       createdAt: player.createdAt,
     };
   });

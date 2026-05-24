@@ -40,8 +40,8 @@ type Fine = {
 type Injury = {
   id: number;
   description: string;
-  recovered: boolean;
-  date: string;
+  injuryDate: string;
+  recoveryDate: string | null;
   player: { id: number; name: string };
 };
 
@@ -131,7 +131,7 @@ export default function Home() {
       <header className="bg-green-700 shadow-lg">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-3xl">⚽</span>
+            <img src="/logo.webp" alt="로고" className="h-12 w-12 object-contain" />
             <div>
               <h1 className="text-2xl font-bold">덕원고 풋살모임</h1>
               <p className="text-green-200 text-sm">팀 기록 & 통계</p>
@@ -760,13 +760,18 @@ function FinesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean })
 
 /* ───────── 부상 탭 ───────── */
 function InjuriesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean }) {
+  const today = new Date().toISOString().split("T")[0];
   const [injuries, setInjuries] = useState<Injury[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [playerId, setPlayerId] = useState<number | "">("");
   const [description, setDescription] = useState("");
+  const [injuryDate, setInjuryDate] = useState(today);
+  const [recoveryDate, setRecoveryDate] = useState("");
   const [editId, setEditId] = useState<number | null>(null);
   const [editDesc, setEditDesc] = useState("");
+  const [editInjuryDate, setEditInjuryDate] = useState("");
+  const [editRecoveryDate, setEditRecoveryDate] = useState("");
 
   const load = useCallback(() => {
     fetch("/api/injuries").then((r) => r.json()).then(setInjuries);
@@ -780,25 +785,44 @@ function InjuriesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean
     await fetch("/api/injuries", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerId, description: description.trim() }),
+      body: JSON.stringify({
+        playerId,
+        description: description.trim(),
+        injuryDate: injuryDate || null,
+        recoveryDate: recoveryDate || null,
+      }),
     });
-    setShowForm(false); setPlayerId(""); setDescription("");
+    setShowForm(false); setPlayerId(""); setDescription(""); setInjuryDate(today); setRecoveryDate("");
     load();
     setSaving(false);
-  };
-
-  const toggleRecovered = async (id: number, recovered: boolean) => {
-    await fetch("/api/injuries", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, recovered: !recovered }) });
-    load();
   };
 
   const saveEdit = async (id: number) => {
     if (!editDesc.trim() || saving) return;
     setSaving(true);
-    await fetch("/api/injuries", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, description: editDesc.trim() }) });
+    await fetch("/api/injuries", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id,
+        description: editDesc.trim(),
+        injuryDate: editInjuryDate,
+        recoveryDate: editRecoveryDate || null,
+      }),
+    });
     setEditId(null);
     load();
     setSaving(false);
+  };
+
+  const toggleRecovery = async (id: number, currentRecoveryDate: string | null) => {
+    const newRecoveryDate = currentRecoveryDate ? null : today;
+    await fetch("/api/injuries", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, recoveryDate: newRecoveryDate }),
+    });
+    load();
   };
 
   const deleteInjury = async (id: number) => {
@@ -807,8 +831,8 @@ function InjuriesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean
     load();
   };
 
-  const active = injuries.filter((i) => !i.recovered);
-  const recovered = injuries.filter((i) => i.recovered);
+  const active = injuries.filter((i) => i.recoveryDate === null);
+  const recovered = injuries.filter((i) => i.recoveryDate !== null);
 
   return (
     <div>
@@ -832,6 +856,16 @@ function InjuriesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean
             </select>
             <input className="bg-gray-700 rounded-lg px-3 py-2 flex-1 min-w-48 outline-none focus:ring-2 ring-green-500" placeholder="부상 내용 * (예: 오른쪽 발목 염좌)" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex-1 min-w-40">
+              <label className="text-xs text-gray-400 mb-1 block">부상일</label>
+              <input type="date" className="bg-gray-700 rounded-lg px-3 py-2 w-full outline-none focus:ring-2 ring-green-500" value={injuryDate} onChange={(e) => setInjuryDate(e.target.value)} />
+            </div>
+            <div className="flex-1 min-w-40">
+              <label className="text-xs text-gray-400 mb-1 block">회복일 (미입력 시 부상 중)</label>
+              <input type="date" className="bg-gray-700 rounded-lg px-3 py-2 w-full outline-none focus:ring-2 ring-green-500" value={recoveryDate} onChange={(e) => setRecoveryDate(e.target.value)} />
+            </div>
+          </div>
           <div className="flex gap-2">
             <button onClick={addInjury} disabled={saving} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
             <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-white px-3 py-2 text-sm">취소</button>
@@ -849,11 +883,13 @@ function InjuriesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean
               <div className="space-y-2">
                 {active.map((i) => (
                   <InjuryCard key={i.id} injury={i} isAdmin={isAdmin}
-                    editId={editId} editDesc={editDesc} saving={saving}
-                    onEdit={(id, desc) => { setEditId(id); setEditDesc(desc); }}
+                    editId={editId} editDesc={editDesc} editInjuryDate={editInjuryDate} editRecoveryDate={editRecoveryDate} saving={saving}
+                    onEdit={(id, desc, iDate, rDate) => { setEditId(id); setEditDesc(desc); setEditInjuryDate(iDate); setEditRecoveryDate(rDate); }}
                     onSaveEdit={saveEdit} onCancelEdit={() => setEditId(null)}
                     onEditDescChange={setEditDesc}
-                    onToggle={toggleRecovered} onDelete={deleteInjury} />
+                    onEditInjuryDateChange={setEditInjuryDate}
+                    onEditRecoveryDateChange={setEditRecoveryDate}
+                    onToggle={toggleRecovery} onDelete={deleteInjury} />
                 ))}
               </div>
             </div>
@@ -864,11 +900,13 @@ function InjuriesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean
               <div className="space-y-2">
                 {recovered.map((i) => (
                   <InjuryCard key={i.id} injury={i} isAdmin={isAdmin}
-                    editId={editId} editDesc={editDesc} saving={saving}
-                    onEdit={(id, desc) => { setEditId(id); setEditDesc(desc); }}
+                    editId={editId} editDesc={editDesc} editInjuryDate={editInjuryDate} editRecoveryDate={editRecoveryDate} saving={saving}
+                    onEdit={(id, desc, iDate, rDate) => { setEditId(id); setEditDesc(desc); setEditInjuryDate(iDate); setEditRecoveryDate(rDate); }}
                     onSaveEdit={saveEdit} onCancelEdit={() => setEditId(null)}
                     onEditDescChange={setEditDesc}
-                    onToggle={toggleRecovered} onDelete={deleteInjury} />
+                    onEditInjuryDateChange={setEditInjuryDate}
+                    onEditRecoveryDateChange={setEditRecoveryDate}
+                    onToggle={toggleRecovery} onDelete={deleteInjury} />
                 ))}
               </div>
             </div>
@@ -879,45 +917,66 @@ function InjuriesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean
   );
 }
 
-function InjuryCard({ injury: i, isAdmin, editId, editDesc, saving, onEdit, onSaveEdit, onCancelEdit, onEditDescChange, onToggle, onDelete }: {
-  injury: Injury; isAdmin: boolean; editId: number | null; editDesc: string; saving: boolean;
-  onEdit: (id: number, desc: string) => void;
+function InjuryCard({ injury: i, isAdmin, editId, editDesc, editInjuryDate, editRecoveryDate, saving, onEdit, onSaveEdit, onCancelEdit, onEditDescChange, onEditInjuryDateChange, onEditRecoveryDateChange, onToggle, onDelete }: {
+  injury: Injury; isAdmin: boolean; editId: number | null; editDesc: string;
+  editInjuryDate: string; editRecoveryDate: string;
+  saving: boolean;
+  onEdit: (id: number, desc: string, injuryDate: string, recoveryDate: string) => void;
   onSaveEdit: (id: number) => void;
   onCancelEdit: () => void;
   onEditDescChange: (v: string) => void;
-  onToggle: (id: number, recovered: boolean) => void;
+  onEditInjuryDateChange: (v: string) => void;
+  onEditRecoveryDateChange: (v: string) => void;
+  onToggle: (id: number, recoveryDate: string | null) => void;
   onDelete: (id: number) => void;
 }) {
   const isEditing = editId === i.id;
+  const isRecovered = i.recoveryDate !== null;
 
   return (
-    <div className={`bg-gray-800 rounded-xl p-4 ${i.recovered ? "opacity-60" : ""}`}>
+    <div className={`bg-gray-800 rounded-xl p-4 ${isRecovered ? "opacity-60" : ""}`}>
       {isEditing ? (
-        <div className="flex gap-2 flex-wrap">
-          <input className="bg-gray-700 rounded-lg px-3 py-2 flex-1 min-w-48 outline-none focus:ring-2 ring-green-500 text-sm" value={editDesc} onChange={(e) => onEditDescChange(e.target.value)} />
-          <button onClick={() => onSaveEdit(i.id)} disabled={saving} className="bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded-lg text-sm disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
-          <button onClick={onCancelEdit} className="bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg text-sm">취소</button>
+        <div className="space-y-2">
+          <input className="bg-gray-700 rounded-lg px-3 py-2 w-full outline-none focus:ring-2 ring-green-500 text-sm" value={editDesc} onChange={(e) => onEditDescChange(e.target.value)} placeholder="부상 내용" />
+          <div className="flex gap-2 flex-wrap">
+            <div className="flex-1 min-w-36">
+              <label className="text-xs text-gray-400 mb-1 block">부상일</label>
+              <input type="date" className="bg-gray-700 rounded-lg px-3 py-2 w-full outline-none focus:ring-2 ring-green-500 text-sm" value={editInjuryDate} onChange={(e) => onEditInjuryDateChange(e.target.value)} />
+            </div>
+            <div className="flex-1 min-w-36">
+              <label className="text-xs text-gray-400 mb-1 block">회복일 (비워두면 부상 중)</label>
+              <input type="date" className="bg-gray-700 rounded-lg px-3 py-2 w-full outline-none focus:ring-2 ring-green-500 text-sm" value={editRecoveryDate} onChange={(e) => onEditRecoveryDateChange(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => onSaveEdit(i.id)} disabled={saving} className="bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded-lg text-sm disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
+            <button onClick={onCancelEdit} className="bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg text-sm">취소</button>
+          </div>
         </div>
       ) : (
         <div className="flex justify-between items-center gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-medium">{i.player.name}</span>
-              {!i.recovered && <span>🩹</span>}
+              {!isRecovered && <span>🩹</span>}
             </div>
-            <div className="text-sm text-gray-400 truncate">{i.description} · {new Date(i.date).toLocaleDateString("ko-KR")}</div>
+            <div className="text-sm text-gray-400">{i.description}</div>
+            <div className="text-xs text-gray-500 mt-0.5">
+              부상일: {new Date(i.injuryDate).toLocaleDateString("ko-KR")}
+              {i.recoveryDate && <> · 회복일: {new Date(i.recoveryDate).toLocaleDateString("ko-KR")}</>}
+            </div>
           </div>
           {isAdmin ? (
             <div className="flex items-center gap-2 shrink-0">
-              <button onClick={() => onToggle(i.id, i.recovered)} className={`px-3 py-1.5 rounded-full text-xs font-medium ${i.recovered ? "bg-gray-700 text-gray-400 hover:bg-gray-600" : "bg-red-800 text-red-200 hover:bg-red-700"}`}>
-                {i.recovered ? "회복완료" : "부상 중"}
+              <button onClick={() => onToggle(i.id, i.recoveryDate)} className={`px-3 py-1.5 rounded-full text-xs font-medium ${isRecovered ? "bg-gray-700 text-gray-400 hover:bg-gray-600" : "bg-red-800 text-red-200 hover:bg-red-700"}`}>
+                {isRecovered ? "회복완료" : "부상 중"}
               </button>
-              <button onClick={() => onEdit(i.id, i.description)} className="text-gray-500 hover:text-white text-sm">✏️</button>
+              <button onClick={() => onEdit(i.id, i.description, i.injuryDate.split("T")[0], i.recoveryDate ? i.recoveryDate.split("T")[0] : "")} className="text-gray-500 hover:text-white text-sm">✏️</button>
               <button onClick={() => onDelete(i.id)} className="text-gray-600 hover:text-red-400 text-sm">🗑️</button>
             </div>
           ) : (
-            <span className={`px-3 py-1.5 rounded-full text-xs font-medium shrink-0 ${i.recovered ? "bg-gray-700 text-gray-400" : "bg-red-900 text-red-300"}`}>
-              {i.recovered ? "회복완료" : "부상 중"}
+            <span className={`px-3 py-1.5 rounded-full text-xs font-medium shrink-0 ${isRecovered ? "bg-gray-700 text-gray-400" : "bg-red-900 text-red-300"}`}>
+              {isRecovered ? "회복완료" : "부상 중"}
             </span>
           )}
         </div>
