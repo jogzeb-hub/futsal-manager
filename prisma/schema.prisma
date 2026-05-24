@@ -24,7 +24,7 @@ model Player {
 
 model MOM {
   id       Int       @id @default(autoincrement())
-  round    Int       @unique
+  round    Int
   date     DateTime?
   playerId Int
 

@@ -1,0 +1,1 @@
+ALTER TABLE "MOM" DROP CONSTRAINT "MOM_round_key";

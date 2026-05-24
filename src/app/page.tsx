@@ -338,7 +338,7 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
                 <div className="p-4">
                   <div className="flex items-center gap-3">
                     {/* 순위 */}
-                    <div className="text-lg w-8 text-center shrink-0">{rankIcon(p, i)}</div>
+                    <div className="text-sm w-12 text-center shrink-0 whitespace-nowrap">{rankIcon(p, i)}</div>
 
                     {/* 이름 */}
                     <div className="flex-1 min-w-0">
@@ -683,9 +683,6 @@ function MatchesTab({ players, onRefresh, isAdmin, season }: { players: Player[]
                   {m.mvp && <div className="text-sm text-yellow-400 mt-1">🌟 MVP: {m.mvp.name}</div>}
                 </div>
                 <div className="text-right ml-4 shrink-0">
-                  {!isFuture(m.date) && (
-                    <div className="text-2xl font-bold">{m.teamAScore} : {m.teamBScore}</div>
-                  )}
                   {resultLabel(m)}
                   {isAdmin && (
                     <div className="flex gap-2 justify-end mt-1">
@@ -1076,7 +1073,7 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
   const [saving, setSaving] = useState(false);
   const [round, setRound] = useState("");
   const [date, setDate] = useState("");
-  const [playerId, setPlayerId] = useState<number | "">("");
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<number[]>([]);
   const [editId, setEditId] = useState<number | null>(null);
   const [editRound, setEditRound] = useState("");
   const [editDate, setEditDate] = useState("");
@@ -1084,7 +1081,6 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
   const [editingBallonDorYear, setEditingBallonDorYear] = useState<number | null>(null);
   const [ballonDorPlayerId, setBallonDorPlayerId] = useState<number | "">("");
 
-  const currentYear = new Date().getFullYear();
   const targetYear = season === "all" ? null : Number(season);
 
   const loadMoms = useCallback(() => {
@@ -1099,15 +1095,23 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
   useEffect(() => { loadMoms(); }, [loadMoms]);
   useEffect(() => { loadBallonDors(); }, [loadBallonDors]);
 
+  const toggleAddPlayer = (id: number) => {
+    setSelectedPlayerIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
   const addMOM = async () => {
-    if (!round || !playerId || saving) return;
+    if (!round || selectedPlayerIds.length === 0 || saving) return;
     setSaving(true);
-    await fetch("/api/mom", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ round: Number(round), date: date || null, playerId }),
-    });
-    setShowForm(false); setRound(""); setDate(""); setPlayerId("");
+    await Promise.all(
+      selectedPlayerIds.map((pid) =>
+        fetch("/api/mom", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ round: Number(round), date: date || null, playerId: pid }),
+        })
+      )
+    );
+    setShowForm(false); setRound(""); setDate(""); setSelectedPlayerIds([]);
     loadMoms();
     setSaving(false);
   };
@@ -1151,6 +1155,13 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
 
   const currentWinner = allBallonDors.find((b) => b.year === targetYear);
 
+  const groupedMoms: { round: number; date: string | null; entries: MOMEntry[] }[] = [];
+  [...moms].sort((a, b) => b.round - a.round).forEach((m) => {
+    const g = groupedMoms.find((x) => x.round === m.round);
+    if (g) g.entries.push(m);
+    else groupedMoms.push({ round: m.round, date: m.date, entries: [m] });
+  });
+
   return (
     <div>
       {/* 발롱도르 이력 */}
@@ -1165,7 +1176,6 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
           )}
         </div>
 
-        {/* 현재 시즌 선정 폼 */}
         {isAdmin && editingBallonDorYear === targetYear && (
           <div className="bg-yellow-900/30 border border-yellow-700/40 rounded-xl px-4 py-3 mb-3 flex items-center gap-3 flex-wrap">
             <span className="text-yellow-400 text-sm font-medium">{targetYear}시즌 발롱도르 선정</span>
@@ -1236,14 +1246,28 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
               <input type="date" className="bg-gray-700 rounded-lg px-3 py-2 w-full outline-none focus:ring-2 ring-green-500" value={date} onChange={(e) => setDate(e.target.value)} />
               <p className="text-xs text-gray-500 mt-1">날짜 선택 안 해도 됩니다</p>
             </div>
-            <select className="bg-gray-700 rounded-lg px-3 py-2 flex-1 min-w-36 outline-none focus:ring-2 ring-green-500" value={playerId} onChange={(e) => setPlayerId(Number(e.target.value))}>
-              <option value="">MOM 선수 선택 *</option>
-              {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-2">MOM 선수 선택 * (복수 선택 가능)</p>
+            <div className="flex flex-wrap gap-2">
+              {players.map((p) => (
+                <button key={p.id} onClick={() => toggleAddPlayer(p.id)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                    selectedPlayerIds.includes(p.id)
+                      ? "bg-green-700 border-green-500 text-white"
+                      : "bg-gray-700 border-gray-600 text-gray-400 hover:text-white"
+                  }`}>
+                  {selectedPlayerIds.includes(p.id) ? "🌟 " : ""}{p.name}
+                </button>
+              ))}
+            </div>
+            {selectedPlayerIds.length > 0 && (
+              <p className="text-xs text-green-400 mt-1.5">{selectedPlayerIds.length}명 선택됨</p>
+            )}
           </div>
           <div className="flex gap-2">
             <button onClick={addMOM} disabled={saving} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
-            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-white px-3 py-2 text-sm">취소</button>
+            <button onClick={() => { setShowForm(false); setSelectedPlayerIds([]); }} className="text-gray-400 hover:text-white px-3 py-2 text-sm">취소</button>
           </div>
         </div>
       )}
@@ -1252,39 +1276,41 @@ function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: bool
         <div className="text-center py-16 text-gray-500"><div className="text-5xl mb-3">🌟</div><p>MOM 기록이 없습니다.</p></div>
       ) : (
         <div className="space-y-2">
-          {[...moms].sort((a, b) => b.round - a.round).map((m) => (
-            <div key={m.id} className="bg-gray-800 rounded-xl p-4">
-              {editId === m.id ? (
-                <div className="flex gap-2 flex-wrap items-end">
-                  <input type="number" min={1} className="bg-gray-700 rounded-lg px-3 py-2 w-24 outline-none focus:ring-2 ring-green-500 text-sm" value={editRound} onChange={(e) => setEditRound(e.target.value)} placeholder="회차" />
-                  <input type="date" className="bg-gray-700 rounded-lg px-3 py-2 outline-none focus:ring-2 ring-green-500 text-sm" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
-                  <select className="bg-gray-700 rounded-lg px-3 py-2 flex-1 min-w-36 outline-none focus:ring-2 ring-green-500 text-sm" value={editPlayerId} onChange={(e) => setEditPlayerId(Number(e.target.value))}>
-                    <option value="">선수 선택</option>
-                    {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                  <button onClick={saveEdit} disabled={saving} className="bg-green-600 hover:bg-green-500 px-3 py-2 rounded-lg text-sm disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
-                  <button onClick={() => setEditId(null)} className="bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-sm">취소</button>
-                </div>
-              ) : (
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <span className="text-yellow-400 font-bold text-lg w-12">{m.round}회</span>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-lg">🌟</span>
-                        <span className="font-bold">{m.player.name}</span>
-                      </div>
-                      {m.date && <div className="text-xs text-gray-500">{new Date(m.date).toLocaleDateString("ko-KR")}</div>}
-                    </div>
+          {groupedMoms.map((group) => (
+            <div key={group.round} className="bg-gray-800 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-yellow-400 font-bold text-base w-12 shrink-0 pt-0.5">{group.round}회</span>
+                <div className="flex-1">
+                  {group.date && <div className="text-xs text-gray-500 mb-1.5">{new Date(group.date).toLocaleDateString("ko-KR")}</div>}
+                  <div className="flex flex-wrap gap-2">
+                    {group.entries.map((m) =>
+                      editId === m.id ? (
+                        <div key={m.id} className="flex gap-2 flex-wrap items-end bg-gray-700 rounded-lg p-2 w-full">
+                          <input type="number" min={1} className="bg-gray-600 rounded px-2 py-1 w-20 outline-none focus:ring-1 ring-green-500 text-sm" value={editRound} onChange={(e) => setEditRound(e.target.value)} placeholder="회차" />
+                          <input type="date" className="bg-gray-600 rounded px-2 py-1 outline-none focus:ring-1 ring-green-500 text-sm" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                          <select className="bg-gray-600 rounded px-2 py-1 flex-1 min-w-32 outline-none focus:ring-1 ring-green-500 text-sm" value={editPlayerId} onChange={(e) => setEditPlayerId(Number(e.target.value))}>
+                            <option value="">선수 선택</option>
+                            {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          </select>
+                          <button onClick={saveEdit} disabled={saving} className="bg-green-600 hover:bg-green-500 px-2 py-1 rounded text-xs disabled:opacity-50">{saving ? "..." : "저장"}</button>
+                          <button onClick={() => setEditId(null)} className="bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded text-xs">취소</button>
+                        </div>
+                      ) : (
+                        <div key={m.id} className="flex items-center gap-1.5 bg-gray-700/60 rounded-full px-3 py-1.5">
+                          <span className="text-sm">🌟</span>
+                          <span className="text-sm font-medium">{m.player.name}</span>
+                          {isAdmin && (
+                            <div className="flex gap-0.5 ml-0.5">
+                              <button onClick={() => { setEditId(m.id); setEditRound(String(m.round)); setEditDate(m.date ? m.date.split("T")[0] : ""); setEditPlayerId(m.player.id); }} className="text-gray-500 hover:text-white text-xs px-0.5">✏️</button>
+                              <button onClick={() => deleteMOM(m.id)} className="text-gray-600 hover:text-red-400 text-xs px-0.5">🗑️</button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    )}
                   </div>
-                  {isAdmin && (
-                    <div className="flex gap-2">
-                      <button onClick={() => { setEditId(m.id); setEditRound(String(m.round)); setEditDate(m.date ? m.date.split("T")[0] : ""); setEditPlayerId(m.player.id); }} className="text-gray-500 hover:text-white text-sm">✏️</button>
-                      <button onClick={() => deleteMOM(m.id)} className="text-gray-600 hover:text-red-400 text-sm">🗑️</button>
-                    </div>
-                  )}
                 </div>
-              )}
+              </div>
             </div>
           ))}
         </div>
