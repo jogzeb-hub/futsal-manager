@@ -30,14 +30,6 @@ type Match = {
   players: { team: string; player: { id: number; name: string } }[];
 };
 
-type Fine = {
-  id: number;
-  amount: number;
-  reason: string;
-  paid: boolean;
-  date: string;
-  player: { id: number; name: string };
-};
 
 type Injury = {
   id: number;
@@ -47,7 +39,7 @@ type Injury = {
   player: { id: number; name: string };
 };
 
-type Tab = "players" | "matches" | "fines" | "injuries" | "mom";
+type Tab = "players" | "matches" | "injuries" | "mom";
 
 function LoginModal({ onClose, onLogin }: { onClose: () => void; onLogin: () => void }) {
   const [password, setPassword] = useState("");
@@ -119,12 +111,11 @@ export default function Home() {
     setIsAdmin(false);
   };
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: "players", label: "📊 통계" },
-    { key: "matches", label: "🏆 경기" },
-    { key: "fines", label: "💸 벌금" },
-    { key: "injuries", label: "🩹 부상" },
-    { key: "mom", label: "🌟 MOM" },
+  const tabs: { key: Tab; icon: string; label: string }[] = [
+    { key: "players", icon: "📊", label: "통계" },
+    { key: "matches", icon: "🏆", label: "경기" },
+    { key: "injuries", icon: "🩹", label: "부상" },
+    { key: "mom", icon: "🌟", label: "MOM" },
   ];
 
   return (
@@ -156,21 +147,21 @@ export default function Home() {
 
       <nav className="bg-gray-900 border-b border-gray-800 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 flex items-center">
-          {tabs.map(({ key, label }) => (
+          {tabs.map(({ key, icon, label }) => (
             <button key={key} onClick={() => setTab(key)}
-              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${tab === key ? "border-green-500 text-green-400" : "border-transparent text-gray-400 hover:text-white"}`}>
-              {label}
+              className={`flex flex-col items-center flex-1 py-2 border-b-2 transition-colors ${tab === key ? "border-green-500 text-green-400" : "border-transparent text-gray-400 hover:text-white"}`}>
+              <span className="text-xl leading-tight">{icon}</span>
+              <span className="text-xs font-medium mt-0.5">{label}</span>
             </button>
           ))}
         </div>
       </nav>
 
       <main className="max-w-5xl mx-auto px-4 py-6">
-        {tab === "players" && <PlayersTab players={players} loading={playersLoading} onRefresh={loadPlayers} isAdmin={isAdmin} />}
-        {tab === "matches" && <MatchesTab players={players} onRefresh={loadPlayers} isAdmin={isAdmin} />}
-        {tab === "fines" && <FinesTab players={players} isAdmin={isAdmin} />}
-        {tab === "injuries" && <InjuriesTab players={players} isAdmin={isAdmin} />}
-        {tab === "mom" && <MOMTab players={players} isAdmin={isAdmin} />}
+        <div className={tab !== "players" ? "hidden" : ""}><PlayersTab players={players} loading={playersLoading} onRefresh={loadPlayers} isAdmin={isAdmin} /></div>
+        <div className={tab !== "matches" ? "hidden" : ""}><MatchesTab players={players} onRefresh={loadPlayers} isAdmin={isAdmin} /></div>
+        <div className={tab !== "injuries" ? "hidden" : ""}><InjuriesTab players={players} isAdmin={isAdmin} /></div>
+        <div className={tab !== "mom" ? "hidden" : ""}><MOMTab players={players} isAdmin={isAdmin} /></div>
       </main>
     </div>
   );
@@ -711,115 +702,6 @@ function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefr
                   )}
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ───────── 벌금 탭 ───────── */
-function FinesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean }) {
-  const [fines, setFines] = useState<Fine[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [playerId, setPlayerId] = useState<number | "">("");
-  const [amount, setAmount] = useState("");
-  const [reason, setReason] = useState("");
-
-  const load = useCallback(() => {
-    fetch("/api/fines").then((r) => r.json()).then(setFines);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const addFine = async () => {
-    if (!playerId || !amount || !reason.trim() || saving) return;
-    setSaving(true);
-    await fetch("/api/fines", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerId, amount: Number(amount), reason: reason.trim() }),
-    });
-    setShowForm(false); setPlayerId(""); setAmount(""); setReason("");
-    load();
-    setSaving(false);
-  };
-
-  const togglePaid = async (id: number, paid: boolean) => {
-    await fetch("/api/fines", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, paid: !paid }) });
-    load();
-  };
-
-  const deleteFine = async (id: number) => {
-    if (!confirm("벌금 기록을 삭제할까요?")) return;
-    await fetch(`/api/fines/${id}`, { method: "DELETE" });
-    load();
-  };
-
-  const total = fines.reduce((s, f) => s + f.amount, 0);
-  const unpaid = fines.filter((f) => !f.paid).reduce((s, f) => s + f.amount, 0);
-
-  return (
-    <div>
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h2 className="text-xl font-bold">벌금 관리</h2>
-          <div className="flex gap-3 text-sm mt-1">
-            <span className="text-gray-400">총 {total.toLocaleString()}원</span>
-            <span className="text-green-400">납부 {(total - unpaid).toLocaleString()}원</span>
-            <span className="text-red-400">미납 {unpaid.toLocaleString()}원</span>
-          </div>
-        </div>
-        {isAdmin && (
-          <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium">+ 벌금 추가</button>
-        )}
-      </div>
-
-      {isAdmin && showForm && (
-        <div className="bg-gray-800 rounded-xl p-4 mb-4 space-y-3">
-          <h3 className="text-sm font-medium text-gray-400">벌금 기록 추가</h3>
-          <div className="flex gap-3 flex-wrap">
-            <select className="bg-gray-700 rounded-lg px-3 py-2 flex-1 min-w-36 outline-none focus:ring-2 ring-green-500" value={playerId} onChange={(e) => setPlayerId(Number(e.target.value))}>
-              <option value="">선수 선택 *</option>
-              {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <input type="number" min={0} className="bg-gray-700 rounded-lg px-3 py-2 w-36 outline-none focus:ring-2 ring-green-500" placeholder="금액 (원) *" value={amount} onChange={(e) => setAmount(e.target.value)} />
-            <input className="bg-gray-700 rounded-lg px-3 py-2 flex-1 min-w-40 outline-none focus:ring-2 ring-green-500" placeholder="사유 * (예: 지각, 노쇼)" value={reason} onChange={(e) => setReason(e.target.value)} />
-          </div>
-          <div className="flex gap-2">
-            <button onClick={addFine} disabled={saving} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
-            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-white px-3 py-2 text-sm">취소</button>
-          </div>
-        </div>
-      )}
-
-      {fines.length === 0 ? (
-        <div className="text-center py-20 text-gray-500"><div className="text-5xl mb-3">💸</div><p>벌금 기록이 없습니다.</p></div>
-      ) : (
-        <div className="space-y-2">
-          {fines.map((f) => (
-            <div key={f.id} className={`bg-gray-800 rounded-xl p-4 flex justify-between items-center gap-3 ${f.paid ? "opacity-60" : ""}`}>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium">{f.player.name}</span>
-                  <span className={`font-bold ${f.paid ? "text-gray-400 line-through" : "text-yellow-400"}`}>{f.amount.toLocaleString()}원</span>
-                </div>
-                <div className="text-sm text-gray-400 truncate">{f.reason} · {new Date(f.date).toLocaleDateString("ko-KR")}</div>
-              </div>
-              {isAdmin ? (
-                <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={() => togglePaid(f.id, f.paid)} className={`px-3 py-1.5 rounded-full text-xs font-medium ${f.paid ? "bg-gray-700 text-gray-400 hover:bg-gray-600" : "bg-yellow-700 text-yellow-200 hover:bg-yellow-600"}`}>
-                    {f.paid ? "납부완료" : "미납"}
-                  </button>
-                  <button onClick={() => deleteFine(f.id)} className="text-gray-600 hover:text-red-400 text-sm">🗑️</button>
-                </div>
-              ) : (
-                <span className={`px-3 py-1.5 rounded-full text-xs font-medium shrink-0 ${f.paid ? "bg-gray-700 text-gray-400" : "bg-yellow-900 text-yellow-300"}`}>
-                  {f.paid ? "납부완료" : "미납"}
-                </span>
-              )}
             </div>
           ))}
         </div>
