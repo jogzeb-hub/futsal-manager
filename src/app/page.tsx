@@ -11,6 +11,7 @@ type Player = {
   draws: number;
   losses: number;
   mvpCount: number;
+  mvpDates: string[];
   totalFines: number;
   unpaidFines: number;
   hasInjury: boolean;
@@ -117,7 +118,7 @@ export default function Home() {
   };
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: "players", label: "👥 선수" },
+    { key: "players", label: "📊 통계" },
     { key: "matches", label: "🏆 경기" },
     { key: "fines", label: "💸 벌금" },
     { key: "injuries", label: "🩹 부상" },
@@ -171,7 +172,9 @@ export default function Home() {
   );
 }
 
-/* ───────── 선수 탭 ───────── */
+type SortKey = "matches" | "winRate" | "wins";
+
+/* ───────── 통계 탭 ───────── */
 function PlayersTab({ players, loading, onRefresh, isAdmin }: { players: Player[]; loading: boolean; onRefresh: () => void; isAdmin: boolean }) {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -180,6 +183,7 @@ function PlayersTab({ players, loading, onRefresh, isAdmin }: { players: Player[
   const [editId, setEditId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editNickname, setEditNickname] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("matches");
 
   const addPlayer = async () => {
     if (!name.trim() || saving) return;
@@ -207,27 +211,60 @@ function PlayersTab({ players, loading, onRefresh, isAdmin }: { players: Player[
     setSaving(false);
   };
 
-  const deletePlayer = async (id: number, name: string) => {
-    if (!confirm(`"${name}" 선수를 삭제할까요?\n관련 경기 기록도 함께 삭제됩니다.`)) return;
+  const deletePlayer = async (id: number, pName: string) => {
+    if (!confirm(`"${pName}" 선수를 삭제할까요?\n관련 경기 기록도 함께 삭제됩니다.`)) return;
     await fetch(`/api/players/${id}`, { method: "DELETE" });
     onRefresh();
   };
 
-  const winRate = (p: Player) => p.totalMatches === 0 ? "-" : `${Math.round((p.wins / p.totalMatches) * 100)}%`;
+  const winRate = (p: Player) =>
+    p.totalMatches === 0 ? 0 : Math.round((p.wins / p.totalMatches) * 100);
+
+  const sorted = [...players].sort((a, b) => {
+    if (sortKey === "matches") return b.totalMatches - a.totalMatches;
+    if (sortKey === "wins") return b.wins - a.wins;
+    return winRate(b) - winRate(a);
+  });
+
+  const sortBtns: { key: SortKey; label: string }[] = [
+    { key: "matches", label: "경기수" },
+    { key: "winRate", label: "승률" },
+    { key: "wins", label: "승리" },
+  ];
+
+  const rankIcon = (i: number) => {
+    if (i === 0) return "🥇";
+    if (i === 1) return "🥈";
+    if (i === 2) return "🥉";
+    return `${i + 1}위`;
+  };
 
   if (loading) return <div className="text-center py-20 text-gray-400">로딩 중...</div>;
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold">선수 목록 ({players.length}명)</h2>
-        {isAdmin && (
-          <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium">
-            + 선수 등록
-          </button>
-        )}
+      {/* 헤더 */}
+      <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+        <h2 className="text-xl font-bold">선수 통계 ({players.length}명)</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* 정렬 버튼 */}
+          <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
+            {sortBtns.map(({ key, label }) => (
+              <button key={key} onClick={() => setSortKey(key)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${sortKey === key ? "bg-green-600 text-white" : "text-gray-400 hover:text-white"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {isAdmin && (
+            <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium">
+              + 선수 등록
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* 선수 등록 폼 */}
       {isAdmin && showForm && (
         <div className="bg-gray-800 rounded-xl p-4 mb-4">
           <h3 className="text-sm font-medium text-gray-400 mb-3">새 선수 등록</h3>
@@ -243,11 +280,11 @@ function PlayersTab({ players, loading, onRefresh, isAdmin }: { players: Player[
       {players.length === 0 ? (
         <div className="text-center py-20 text-gray-500"><div className="text-5xl mb-3">👥</div><p>선수를 등록해보세요!</p></div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {players.map((p) => (
-            <div key={p.id} className="bg-gray-800 rounded-xl p-4">
+        <div className="space-y-2">
+          {sorted.map((p, i) => (
+            <div key={p.id} className="bg-gray-800 rounded-xl overflow-hidden">
               {editId === p.id ? (
-                <div className="space-y-2">
+                <div className="p-4 space-y-2">
                   <input className="bg-gray-700 rounded-lg px-3 py-2 w-full outline-none focus:ring-2 ring-green-500 text-sm" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="이름" />
                   <input className="bg-gray-700 rounded-lg px-3 py-2 w-full outline-none focus:ring-2 ring-green-500 text-sm" value={editNickname} onChange={(e) => setEditNickname(e.target.value)} placeholder="닉네임" />
                   <div className="flex gap-2">
@@ -256,34 +293,64 @@ function PlayersTab({ players, loading, onRefresh, isAdmin }: { players: Player[
                   </div>
                 </div>
               ) : (
-                <>
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-lg">{p.name}</h3>
-                        {p.hasInjury && <span title="부상 중">🩹</span>}
+                <div className="p-4">
+                  <div className="flex items-center gap-3">
+                    {/* 순위 */}
+                    <div className="text-lg w-8 text-center shrink-0">{rankIcon(i)}</div>
+
+                    {/* 이름 */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold">{p.name}</span>
+                        {p.nickname && <span className="text-gray-400 text-xs">({p.nickname})</span>}
+                        {p.hasInjury && <span title="부상 중" className="text-sm">🩹</span>}
+                        {p.unpaidFines > 0 && <span title="미납 벌금" className="text-sm">💸</span>}
                       </div>
-                      {p.nickname && <p className="text-gray-400 text-sm">"{p.nickname}"</p>}
+                      {/* MVP 날짜 */}
+                      {p.mvpCount > 0 && (
+                        <div className="text-xs text-yellow-400 mt-0.5">
+                          🏅 MVP {p.mvpCount}회
+                          <span className="text-yellow-600 ml-1">
+                            ({p.mvpDates.map((d) => d.slice(5).replace("-", "/")).join(", ")})
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    {isAdmin && (
-                      <div className="flex gap-1">
-                        <button onClick={() => { setEditId(p.id); setEditName(p.name); setEditNickname(p.nickname ?? ""); }} className="text-gray-500 hover:text-white p-1 rounded text-xs">✏️</button>
-                        <button onClick={() => deletePlayer(p.id, p.name)} className="text-gray-500 hover:text-red-400 p-1 rounded text-xs">🗑️</button>
+
+                    {/* 스탯 */}
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-center hidden sm:block">
+                        <div className="text-xs text-gray-400">경기</div>
+                        <div className="font-bold">{p.totalMatches}</div>
                       </div>
-                    )}
+                      <div className="flex gap-1 text-sm font-medium">
+                        <span className="text-green-400">{p.wins}승</span>
+                        <span className="text-gray-500">{p.draws}무</span>
+                        <span className="text-red-400">{p.losses}패</span>
+                      </div>
+                      {/* 승률 바 */}
+                      <div className="text-right w-16">
+                        <div className="text-sm font-bold text-white">
+                          {p.totalMatches === 0 ? "-" : `${winRate(p)}%`}
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-1.5 mt-0.5">
+                          <div
+                            className="bg-green-500 h-1.5 rounded-full transition-all"
+                            style={{ width: `${winRate(p)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* 관리자 버튼 */}
+                      {isAdmin && (
+                        <div className="flex gap-1 ml-1">
+                          <button onClick={() => { setEditId(p.id); setEditName(p.name); setEditNickname(p.nickname ?? ""); }} className="text-gray-500 hover:text-white p-1 text-xs">✏️</button>
+                          <button onClick={() => deletePlayer(p.id, p.name)} className="text-gray-500 hover:text-red-400 p-1 text-xs">🗑️</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-2 text-center text-sm mb-3">
-                    <div className="bg-gray-700 rounded-lg p-2"><div className="text-gray-400 text-xs">경기</div><div className="font-bold text-lg">{p.totalMatches}</div></div>
-                    <div className="bg-green-900 rounded-lg p-2"><div className="text-green-400 text-xs">승</div><div className="font-bold text-lg text-green-400">{p.wins}</div></div>
-                    <div className="bg-gray-700 rounded-lg p-2"><div className="text-gray-400 text-xs">무</div><div className="font-bold text-lg">{p.draws}</div></div>
-                    <div className="bg-red-900 rounded-lg p-2"><div className="text-red-400 text-xs">패</div><div className="font-bold text-lg text-red-400">{p.losses}</div></div>
-                  </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400">
-                    <span>승률 <strong className="text-white">{winRate(p)}</strong></span>
-                    {p.mvpCount > 0 && <span>🏅 MVP <strong className="text-yellow-400">{p.mvpCount}회</strong></span>}
-                    {p.unpaidFines > 0 && <span>💸 미납 <strong className="text-red-400">{p.unpaidFines.toLocaleString()}원</strong></span>}
-                  </div>
-                </>
+                </div>
               )}
             </div>
           ))}

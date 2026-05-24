@@ -8,7 +8,7 @@ export async function GET() {
       matches: { include: { match: true } },
       injuries: true,
       fines: true,
-      mvpAwards: true,
+      mvpAwards: { orderBy: { date: "asc" } },
     },
     orderBy: { name: "asc" },
   });
@@ -40,6 +40,7 @@ export async function GET() {
       draws,
       losses,
       mvpCount: player.mvpAwards.length,
+      mvpDates: player.mvpAwards.map((m) => m.date.toISOString().split("T")[0]),
       totalFines,
       unpaidFines,
       hasInjury: player.injuries.some((i) => !i.recovered),
