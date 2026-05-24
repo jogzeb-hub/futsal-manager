@@ -22,13 +22,7 @@ export async function GET(req: NextRequest) {
   const withMomCount = await Promise.all(
     all.map(async (bd) => {
       const momCount = await prisma.mOM.count({
-        where: {
-          playerId: bd.playerId,
-          date: {
-            gte: new Date(`${bd.year}-01-01`),
-            lt: new Date(`${bd.year + 1}-01-01`),
-          },
-        },
+        where: { playerId: bd.playerId },
       });
       return { ...bd, momCount };
     })

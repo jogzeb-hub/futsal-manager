@@ -285,6 +285,13 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
   const rankOf = (p: Player): number =>
     regularPlayers.filter((x) => primaryValue(x) > primaryValue(p)).length + 1;
 
+  const momColor = (count: number) => {
+    if (count >= 7) return "text-yellow-400";
+    if (count >= 4) return "text-orange-400";
+    if (count >= 2) return "text-green-400";
+    return "text-gray-400";
+  };
+
   const sortBtns: { key: SortKey; label: string }[] = [
     { key: "matches", label: "경기수" },
     { key: "winRate", label: "승률" },
@@ -364,24 +371,23 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold">{p.name}</span>
-                        {p.ballonDorYears.length > 0 && (
-                          <span className="text-yellow-400 text-xs font-medium">
-                            🏆 {p.ballonDorYears.map((y) => `${y}발롱도르`).join(" · ")}
-                          </span>
-                        )}
                         {p.nickname && <span className="text-gray-400 text-xs">({p.nickname})</span>}
                         {p.hasInjury && (
                           <span className="text-sm text-red-500 font-bold">✚ 부상 {p.injuryDays}일째</span>
                         )}
                         {p.unpaidFines > 0 && <span title="미납 벌금" className="text-sm">💸</span>}
                       </div>
-                      {/* MOM */}
-                      {p.momCount > 0 && (
-                        <div className="text-xs text-yellow-400 mt-0.5">
-                          🌟 MOM {p.momCount}회
-                          {p.momDates.length > 0 && (
-                            <span className="text-yellow-600 ml-1">
-                              ({p.momDates.map((d) => d.slice(5).replace("-", "/")).join(", ")})
+                      {/* 수상 이력 */}
+                      {(p.ballonDorYears.length > 0 || p.momCount > 0) && (
+                        <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap">
+                          {p.ballonDorYears.length > 0 && (
+                            <span className="text-yellow-400 font-medium">
+                              🏆 {p.ballonDorYears.map((y) => `${y}발롱도르`).join(" · ")}
+                            </span>
+                          )}
+                          {p.momCount > 0 && (
+                            <span className={`${momColor(p.momCount)} font-medium`}>
+                              🌟 MOM {p.momCount}회
                             </span>
                           )}
                         </div>
