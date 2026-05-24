@@ -993,8 +993,20 @@ function InjuryCard({ injury: i, isAdmin, editId, editDesc, editInjuryDate, edit
             </div>
             <div className="text-sm text-gray-400">{i.description}</div>
             <div className="text-xs text-gray-500 mt-0.5">
-              부상일: {new Date(i.injuryDate).toLocaleDateString("ko-KR")}
-              {i.recoveryDate && <> · 회복일: {new Date(i.recoveryDate).toLocaleDateString("ko-KR")}</>}
+              {(() => {
+                const start = new Date(i.injuryDate);
+                const end = i.recoveryDate ? new Date(i.recoveryDate) : new Date();
+                const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                return (
+                  <>
+                    부상일: {start.toLocaleDateString("ko-KR")}
+                    {i.recoveryDate
+                      ? <> · 회복일: {new Date(i.recoveryDate).toLocaleDateString("ko-KR")} · <span className="text-gray-400">{days}일</span></>
+                      : <> · <span className="text-red-400 font-medium">부상 {days}일째</span></>
+                    }
+                  </>
+                );
+              })()}
             </div>
           </div>
           {isAdmin ? (
