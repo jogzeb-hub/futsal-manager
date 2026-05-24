@@ -14,10 +14,19 @@ model Player {
   nickname  String?
   createdAt DateTime @default(now())
 
-  matches   MatchPlayer[]
-  injuries  Injury[]
-  fines     Fine[]
-  mvpAwards Match[]      @relation("MVP")
+  matches    MatchPlayer[]
+  injuries   Injury[]
+  fines      Fine[]
+  mvpAwards  Match[]      @relation("MVP")
+  ballonDors BallonDor[]
+}
+
+model BallonDor {
+  id       Int    @id @default(autoincrement())
+  year     Int    @unique
+  playerId Int
+
+  player Player @relation(fields: [playerId], references: [id])
 }
 
 model Match {

@@ -9,6 +9,10 @@ export async function GET(req: NextRequest) {
     ? { gte: new Date(`${year}-01-01`), lt: new Date(`${Number(year) + 1}-01-01`) }
     : undefined;
 
+  const ballonDor = year
+    ? await prisma.ballonDor.findUnique({ where: { year: Number(year) } })
+    : null;
+
   const players = await prisma.player.findMany({
     include: {
       matches: {
@@ -58,6 +62,7 @@ export async function GET(req: NextRequest) {
       totalFines,
       unpaidFines,
       hasInjury: player.injuries.length > 0,
+      isBallonDor: ballonDor?.playerId === player.id,
       injuryDays: player.injuries.length > 0
         ? Math.round((Date.now() - player.injuries[0].injuryDate.getTime()) / (1000 * 60 * 60 * 24))
         : null,
