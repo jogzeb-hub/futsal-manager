@@ -101,11 +101,13 @@ export default function Home() {
   const [playersLoading, setPlayersLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [season, setSeason] = useState(String(new Date().getFullYear()));
 
   const loadPlayers = useCallback(() => {
     setPlayersLoading(true);
-    fetch("/api/players").then((r) => r.json()).then((data) => { setPlayers(data); setPlayersLoading(false); });
-  }, []);
+    const url = season === "all" ? "/api/players" : `/api/players?year=${season}`;
+    fetch(url).then((r) => r.json()).then((data) => { setPlayers(data); setPlayersLoading(false); });
+  }, [season]);
 
   useEffect(() => {
     loadPlayers();
@@ -152,21 +154,29 @@ export default function Home() {
       </header>
 
       <nav className="bg-gray-900 border-b border-gray-800 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 flex">
+        <div className="max-w-5xl mx-auto px-4 flex items-center">
           {tabs.map(({ key, label }) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${tab === key ? "border-green-500 text-green-400" : "border-transparent text-gray-400 hover:text-white"}`}>
               {label}
             </button>
           ))}
+          <div className="ml-auto flex bg-gray-800 rounded-lg p-1 gap-1">
+            {[String(new Date().getFullYear()), "all"].map((s) => (
+              <button key={s} onClick={() => setSeason(s)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${season === s ? "bg-green-600 text-white" : "text-gray-400 hover:text-white"}`}>
+                {s === "all" ? "전체" : `${s}시즌`}
+              </button>
+            ))}
+          </div>
         </div>
       </nav>
 
       <main className="max-w-5xl mx-auto px-4 py-6">
-        {tab === "players" && <PlayersTab players={players} loading={playersLoading} onRefresh={loadPlayers} isAdmin={isAdmin} />}
-        {tab === "matches" && <MatchesTab players={players} onRefresh={loadPlayers} isAdmin={isAdmin} />}
-        {tab === "fines" && <FinesTab players={players} isAdmin={isAdmin} />}
-        {tab === "injuries" && <InjuriesTab players={players} isAdmin={isAdmin} />}
+        {tab === "players" && <PlayersTab players={players} loading={playersLoading} onRefresh={loadPlayers} isAdmin={isAdmin} season={season} />}
+        {tab === "matches" && <MatchesTab players={players} onRefresh={loadPlayers} isAdmin={isAdmin} season={season} />}
+        {tab === "fines" && <FinesTab players={players} isAdmin={isAdmin} season={season} />}
+        {tab === "injuries" && <InjuriesTab players={players} isAdmin={isAdmin} season={season} />}
       </main>
     </div>
   );
@@ -175,7 +185,7 @@ export default function Home() {
 type SortKey = "matches" | "winRate" | "wins";
 
 /* ───────── 통계 탭 ───────── */
-function PlayersTab({ players, loading, onRefresh, isAdmin }: { players: Player[]; loading: boolean; onRefresh: () => void; isAdmin: boolean }) {
+function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players: Player[]; loading: boolean; onRefresh: () => void; isAdmin: boolean; season: string }) {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [nickname, setNickname] = useState("");
@@ -245,7 +255,7 @@ function PlayersTab({ players, loading, onRefresh, isAdmin }: { players: Player[
     <div>
       {/* 헤더 */}
       <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
-        <h2 className="text-xl font-bold">선수 통계 ({players.length}명)</h2>
+        <h2 className="text-xl font-bold">선수 통계 ({players.length}명) <span className="text-sm font-normal text-gray-400">{season === "all" ? "전체" : `${season}시즌`}</span></h2>
         <div className="flex items-center gap-2 flex-wrap">
           {/* 정렬 버튼 */}
           <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
@@ -365,7 +375,7 @@ function PlayersTab({ players, loading, onRefresh, isAdmin }: { players: Player[
 }
 
 /* ───────── 경기 탭 ───────── */
-function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefresh: () => void; isAdmin: boolean }) {
+function MatchesTab({ players, onRefresh, isAdmin, season }: { players: Player[]; onRefresh: () => void; isAdmin: boolean; season: string }) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -383,8 +393,9 @@ function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefr
 
   const load = useCallback(() => {
     setMatchesLoading(true);
-    fetch("/api/matches").then((r) => r.json()).then((data) => { setMatches(data); setMatchesLoading(false); });
-  }, []);
+    const url = season === "all" ? "/api/matches" : `/api/matches?year=${season}`;
+    fetch(url).then((r) => r.json()).then((data) => { setMatches(data); setMatchesLoading(false); });
+  }, [season]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -654,7 +665,7 @@ function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefr
 }
 
 /* ───────── 벌금 탭 ───────── */
-function FinesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean }) {
+function FinesTab({ players, isAdmin, season }: { players: Player[]; isAdmin: boolean; season: string }) {
   const [fines, setFines] = useState<Fine[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -663,8 +674,9 @@ function FinesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean })
   const [reason, setReason] = useState("");
 
   const load = useCallback(() => {
-    fetch("/api/fines").then((r) => r.json()).then(setFines);
-  }, []);
+    const url = season === "all" ? "/api/fines" : `/api/fines?year=${season}`;
+    fetch(url).then((r) => r.json()).then(setFines);
+  }, [season]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -763,7 +775,7 @@ function FinesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean })
 }
 
 /* ───────── 부상 탭 ───────── */
-function InjuriesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean }) {
+function InjuriesTab({ players, isAdmin, season }: { players: Player[]; isAdmin: boolean; season: string }) {
   const today = new Date().toISOString().split("T")[0];
   const [injuries, setInjuries] = useState<Injury[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -778,8 +790,9 @@ function InjuriesTab({ players, isAdmin }: { players: Player[]; isAdmin: boolean
   const [editRecoveryDate, setEditRecoveryDate] = useState("");
 
   const load = useCallback(() => {
-    fetch("/api/injuries").then((r) => r.json()).then(setInjuries);
-  }, []);
+    const url = season === "all" ? "/api/injuries" : `/api/injuries?year=${season}`;
+    fetch(url).then((r) => r.json()).then(setInjuries);
+  }, [season]);
 
   useEffect(() => { load(); }, [load]);
 

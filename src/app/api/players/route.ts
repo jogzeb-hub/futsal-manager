@@ -2,13 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const year = searchParams.get("year");
+  const dateFilter = year
+    ? { gte: new Date(`${year}-01-01`), lt: new Date(`${Number(year) + 1}-01-01`) }
+    : undefined;
+
   const players = await prisma.player.findMany({
     include: {
-      matches: { include: { match: true } },
-      injuries: true,
-      fines: true,
-      mvpAwards: { orderBy: { date: "asc" } },
+      matches: {
+        include: { match: true },
+        ...(dateFilter ? { where: { match: { date: dateFilter } } } : {}),
+      },
+      injuries: { where: { recoveryDate: null } },
+      fines: {
+        ...(dateFilter ? { where: { date: dateFilter } } : {}),
+      },
+      mvpAwards: {
+        orderBy: { date: "asc" },
+        ...(dateFilter ? { where: { date: dateFilter } } : {}),
+      },
     },
     orderBy: { name: "asc" },
   });
@@ -43,7 +57,7 @@ export async function GET() {
       mvpDates: player.mvpAwards.map((m) => m.date.toISOString().split("T")[0]),
       totalFines,
       unpaidFines,
-      hasInjury: player.injuries.some((i) => i.recoveryDate === null),
+      hasInjury: player.injuries.length > 0,
       createdAt: player.createdAt,
     };
   });

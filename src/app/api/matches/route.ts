@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const year = searchParams.get("year");
+  const where = year
+    ? { date: { gte: new Date(`${year}-01-01`), lt: new Date(`${Number(year) + 1}-01-01`) } }
+    : {};
+
   const matches = await prisma.match.findMany({
+    where,
     include: {
       mvp: true,
       players: { include: { player: true } },
