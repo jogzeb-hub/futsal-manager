@@ -132,13 +132,13 @@ export default function Home() {
 
       <header className="bg-green-700 shadow-lg">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <button className="flex items-center gap-3 hover:opacity-80 transition-opacity" onClick={() => setTab("players")}>
             <img src="/logo.webp" alt="로고" className="h-12 w-12 object-contain" />
-            <div>
+            <div className="text-left">
               <h1 className="text-2xl font-bold">덕원고 풋살모임</h1>
               <p className="text-green-200 text-sm">팀 기록 & 통계</p>
             </div>
-          </div>
+          </button>
           <div>
             {isAdmin ? (
               <button onClick={logout} className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded-lg text-sm font-medium">
