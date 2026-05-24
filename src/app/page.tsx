@@ -230,6 +230,15 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
   const winRate = (p: Player) =>
     p.totalMatches === 0 ? 0 : Math.round((p.wins / p.totalMatches) * 100);
 
+  const maxMatches = Math.max(...players.map((p) => p.totalMatches), 1);
+  const maxWins = Math.max(...players.map((p) => p.wins), 1);
+
+  const gaugeWidth = (p: Player) => {
+    if (sortKey === "matches") return Math.round((p.totalMatches / maxMatches) * 100);
+    if (sortKey === "wins") return Math.round((p.wins / maxWins) * 100);
+    return winRate(p);
+  };
+
   const sorted = [...players].sort((a, b) => {
     if (sortKey === "matches") return b.totalMatches - a.totalMatches;
     if (sortKey === "wins") return b.wins - a.wins;
@@ -350,7 +359,7 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
                         <div className="w-full bg-gray-700 rounded-full h-1.5 mt-0.5">
                           <div
                             className="bg-green-500 h-1.5 rounded-full transition-all"
-                            style={{ width: `${winRate(p)}%` }}
+                            style={{ width: `${gaugeWidth(p)}%` }}
                           />
                         </div>
                       </div>
