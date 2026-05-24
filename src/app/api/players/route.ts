@@ -23,8 +23,8 @@ export async function GET(req: NextRequest) {
       fines: {
         ...(dateFilter ? { where: { date: dateFilter } } : {}),
       },
-      mvpAwards: {
-        orderBy: { date: "asc" },
+      moms: {
+        orderBy: { round: "asc" },
         ...(dateFilter ? { where: { date: dateFilter } } : {}),
       },
     },
@@ -57,8 +57,8 @@ export async function GET(req: NextRequest) {
       wins,
       draws,
       losses,
-      mvpCount: player.mvpAwards.length,
-      mvpDates: player.mvpAwards.map((m) => m.date.toISOString().split("T")[0]),
+      momCount: player.moms.length,
+      momDates: player.moms.map((m) => m.date ? m.date.toISOString().split("T")[0] : null).filter(Boolean) as string[],
       totalFines,
       unpaidFines,
       hasInjury: player.injuries.length > 0,

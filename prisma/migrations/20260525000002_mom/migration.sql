@@ -1,0 +1,8 @@
+CREATE TABLE "MOM" (
+  "id" SERIAL PRIMARY KEY,
+  "round" INTEGER NOT NULL,
+  "date" TIMESTAMP(3),
+  "playerId" INTEGER NOT NULL,
+  CONSTRAINT "MOM_round_key" UNIQUE ("round"),
+  CONSTRAINT "MOM_playerId_fkey" FOREIGN KEY ("playerId") REFERENCES "Player"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);

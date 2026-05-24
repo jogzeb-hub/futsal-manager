@@ -19,6 +19,16 @@ model Player {
   fines      Fine[]
   mvpAwards  Match[]      @relation("MVP")
   ballonDors BallonDor[]
+  moms       MOM[]
+}
+
+model MOM {
+  id       Int       @id @default(autoincrement())
+  round    Int       @unique
+  date     DateTime?
+  playerId Int
+
+  player Player @relation(fields: [playerId], references: [id])
 }
 
 model BallonDor {

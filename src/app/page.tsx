@@ -10,8 +10,8 @@ type Player = {
   wins: number;
   draws: number;
   losses: number;
-  mvpCount: number;
-  mvpDates: string[];
+  momCount: number;
+  momDates: string[];
   totalFines: number;
   unpaidFines: number;
   hasInjury: boolean;
@@ -47,7 +47,7 @@ type Injury = {
   player: { id: number; name: string };
 };
 
-type Tab = "players" | "matches" | "fines" | "injuries";
+type Tab = "players" | "matches" | "fines" | "injuries" | "mom";
 
 function LoginModal({ onClose, onLogin }: { onClose: () => void; onLogin: () => void }) {
   const [password, setPassword] = useState("");
@@ -126,6 +126,7 @@ export default function Home() {
     { key: "matches", label: "🏆 경기" },
     { key: "fines", label: "💸 벌금" },
     { key: "injuries", label: "🩹 부상" },
+    { key: "mom", label: "🌟 MOM" },
   ];
 
   return (
@@ -179,6 +180,7 @@ export default function Home() {
         {tab === "matches" && <MatchesTab players={players} onRefresh={loadPlayers} isAdmin={isAdmin} season={season} />}
         {tab === "fines" && <FinesTab players={players} isAdmin={isAdmin} season={season} />}
         {tab === "injuries" && <InjuriesTab players={players} isAdmin={isAdmin} season={season} />}
+        {tab === "mom" && <MOMTab players={players} isAdmin={isAdmin} season={season} />}
       </main>
     </div>
   );
@@ -196,37 +198,6 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
   const [editName, setEditName] = useState("");
   const [editNickname, setEditNickname] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("matches");
-  const [ballonDorWinner, setBallonDorWinner] = useState<{ playerId: number; player: { name: string } } | null>(null);
-  const [showBallonDorSelect, setShowBallonDorSelect] = useState(false);
-  const [ballonDorPlayerId, setBallonDorPlayerId] = useState<number | "">("");
-
-  useEffect(() => {
-    if (season === "all") { setBallonDorWinner(null); return; }
-    fetch(`/api/ballondor?year=${season}`).then((r) => r.json()).then((d) => setBallonDorWinner(d || null));
-  }, [season]);
-
-  const saveBallonDor = async () => {
-    if (!ballonDorPlayerId || saving) return;
-    setSaving(true);
-    await fetch("/api/ballondor", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ year: Number(season), playerId: ballonDorPlayerId }),
-    });
-    const res = await fetch(`/api/ballondor?year=${season}`);
-    setBallonDorWinner(await res.json());
-    setShowBallonDorSelect(false);
-    setBallonDorPlayerId("");
-    onRefresh();
-    setSaving(false);
-  };
-
-  const deleteBallonDor = async () => {
-    await fetch(`/api/ballondor?year=${season}`, { method: "DELETE" });
-    setBallonDorWinner(null);
-    onRefresh();
-  };
-
   const addPlayer = async () => {
     if (!name.trim() || saving) return;
     setSaving(true);
@@ -299,46 +270,6 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
 
   return (
     <div>
-      {/* 발롱도르 배너 */}
-      {season !== "all" && (
-        <div className="bg-yellow-900/40 border border-yellow-700/50 rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🏆</span>
-            <div>
-              <div className="text-xs text-yellow-500 font-medium">{season}시즌 발롱도르</div>
-              <div className="font-bold text-yellow-300">
-                {ballonDorWinner ? ballonDorWinner.player.name : <span className="text-yellow-700 font-normal">미선정</span>}
-              </div>
-            </div>
-          </div>
-          {isAdmin && (
-            <div className="flex items-center gap-2 shrink-0">
-              {showBallonDorSelect ? (
-                <>
-                  <select className="bg-gray-700 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 ring-yellow-500"
-                    value={ballonDorPlayerId} onChange={(e) => setBallonDorPlayerId(Number(e.target.value))}>
-                    <option value="">선수 선택</option>
-                    {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                  <button onClick={saveBallonDor} disabled={saving} className="bg-yellow-600 hover:bg-yellow-500 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
-                  <button onClick={() => setShowBallonDorSelect(false)} className="text-gray-400 hover:text-white text-xs px-2">취소</button>
-                </>
-              ) : (
-                <>
-                  <button onClick={() => { setShowBallonDorSelect(true); setBallonDorPlayerId(ballonDorWinner?.playerId ?? ""); }}
-                    className="bg-yellow-700 hover:bg-yellow-600 px-3 py-1.5 rounded-lg text-xs font-medium">
-                    {ballonDorWinner ? "변경" : "선정"}
-                  </button>
-                  {ballonDorWinner && (
-                    <button onClick={deleteBallonDor} className="text-gray-500 hover:text-red-400 text-sm">🗑️</button>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* 헤더 */}
       <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
         <h2 className="text-xl font-bold">선수 통계 ({players.length}명) <span className="text-sm font-normal text-gray-400">{season === "all" ? "전체" : `${season}시즌`}</span></h2>
@@ -405,13 +336,15 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
                         )}
                         {p.unpaidFines > 0 && <span title="미납 벌금" className="text-sm">💸</span>}
                       </div>
-                      {/* MVP 날짜 */}
-                      {p.mvpCount > 0 && (
+                      {/* MOM */}
+                      {p.momCount > 0 && (
                         <div className="text-xs text-yellow-400 mt-0.5">
-                          🏅 MVP {p.mvpCount}회
-                          <span className="text-yellow-600 ml-1">
-                            ({p.mvpDates.map((d) => d.slice(5).replace("-", "/")).join(", ")})
-                          </span>
+                          🌟 MOM {p.momCount}회
+                          {p.momDates.length > 0 && (
+                            <span className="text-yellow-600 ml-1">
+                              ({p.momDates.map((d) => d.slice(5).replace("-", "/")).join(", ")})
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1097,6 +1030,206 @@ function InjuryCard({ injury: i, isAdmin, editId, editDesc, editInjuryDate, edit
               {isRecovered ? "회복완료" : "부상 중"}
             </span>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ───────── MOM 탭 ───────── */
+type MOMEntry = {
+  id: number;
+  round: number;
+  date: string | null;
+  player: { id: number; name: string };
+};
+
+function MOMTab({ players, isAdmin, season }: { players: Player[]; isAdmin: boolean; season: string }) {
+  const [moms, setMoms] = useState<MOMEntry[]>([]);
+  const [ballonDorWinner, setBallonDorWinner] = useState<{ playerId: number; player: { name: string } } | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [round, setRound] = useState("");
+  const [date, setDate] = useState("");
+  const [playerId, setPlayerId] = useState<number | "">("");
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editRound, setEditRound] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editPlayerId, setEditPlayerId] = useState<number | "">("");
+  const [showBallonDorSelect, setShowBallonDorSelect] = useState(false);
+  const [ballonDorPlayerId, setBallonDorPlayerId] = useState<number | "">("");
+
+  const load = useCallback(() => {
+    const url = season === "all" ? "/api/mom" : `/api/mom?year=${season}`;
+    fetch(url).then((r) => r.json()).then(setMoms);
+  }, [season]);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (season === "all") { setBallonDorWinner(null); return; }
+    fetch(`/api/ballondor?year=${season}`).then((r) => r.json()).then((d) => setBallonDorWinner(d || null));
+  }, [season]);
+
+  const addMOM = async () => {
+    if (!round || !playerId || saving) return;
+    setSaving(true);
+    await fetch("/api/mom", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ round: Number(round), date: date || null, playerId }),
+    });
+    setShowForm(false); setRound(""); setDate(""); setPlayerId("");
+    load();
+    setSaving(false);
+  };
+
+  const saveEdit = async () => {
+    if (!editRound || !editPlayerId || saving) return;
+    setSaving(true);
+    await fetch("/api/mom", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: editId, round: Number(editRound), date: editDate || null, playerId: editPlayerId }),
+    });
+    setEditId(null);
+    load();
+    setSaving(false);
+  };
+
+  const deleteMOM = async (id: number) => {
+    if (!confirm("MOM 기록을 삭제할까요?")) return;
+    await fetch("/api/mom", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    load();
+  };
+
+  const saveBallonDor = async () => {
+    if (!ballonDorPlayerId || saving) return;
+    setSaving(true);
+    await fetch("/api/ballondor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ year: Number(season), playerId: ballonDorPlayerId }),
+    });
+    const res = await fetch(`/api/ballondor?year=${season}`);
+    setBallonDorWinner(await res.json());
+    setShowBallonDorSelect(false); setBallonDorPlayerId("");
+    setSaving(false);
+  };
+
+  const deleteBallonDor = async () => {
+    await fetch(`/api/ballondor?year=${season}`, { method: "DELETE" });
+    setBallonDorWinner(null);
+  };
+
+  return (
+    <div>
+      {/* 발롱도르 */}
+      {season !== "all" && (
+        <div className="bg-yellow-900/40 border border-yellow-700/50 rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏆</span>
+            <div>
+              <div className="text-xs text-yellow-500 font-medium">{season}시즌 발롱도르</div>
+              <div className="font-bold text-yellow-300">
+                {ballonDorWinner ? ballonDorWinner.player.name : <span className="text-yellow-700 font-normal">미선정</span>}
+              </div>
+            </div>
+          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2 shrink-0">
+              {showBallonDorSelect ? (
+                <>
+                  <select className="bg-gray-700 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 ring-yellow-500"
+                    value={ballonDorPlayerId} onChange={(e) => setBallonDorPlayerId(Number(e.target.value))}>
+                    <option value="">선수 선택</option>
+                    {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <button onClick={saveBallonDor} disabled={saving} className="bg-yellow-600 hover:bg-yellow-500 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
+                  <button onClick={() => setShowBallonDorSelect(false)} className="text-gray-400 hover:text-white text-xs px-2">취소</button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => { setShowBallonDorSelect(true); setBallonDorPlayerId(ballonDorWinner?.playerId ?? ""); }}
+                    className="bg-yellow-700 hover:bg-yellow-600 px-3 py-1.5 rounded-lg text-xs font-medium">
+                    {ballonDorWinner ? "변경" : "선정"}
+                  </button>
+                  {ballonDorWinner && <button onClick={deleteBallonDor} className="text-gray-500 hover:text-red-400 text-sm">🗑️</button>}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MOM 목록 */}
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">MOM 기록 <span className="text-sm font-normal text-gray-400">{season === "all" ? "전체" : `${season}시즌`}</span></h2>
+        {isAdmin && (
+          <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium">+ MOM 추가</button>
+        )}
+      </div>
+
+      {isAdmin && showForm && (
+        <div className="bg-gray-800 rounded-xl p-4 mb-4 space-y-3">
+          <h3 className="text-sm font-medium text-gray-400">MOM 기록 추가</h3>
+          <div className="flex gap-3 flex-wrap">
+            <input type="number" min={1} className="bg-gray-700 rounded-lg px-3 py-2 w-24 outline-none focus:ring-2 ring-green-500" placeholder="회차 *" value={round} onChange={(e) => setRound(e.target.value)} />
+            <div className="flex-1 min-w-36">
+              <input type="date" className="bg-gray-700 rounded-lg px-3 py-2 w-full outline-none focus:ring-2 ring-green-500" value={date} onChange={(e) => setDate(e.target.value)} />
+              <p className="text-xs text-gray-500 mt-1">날짜 선택 안 해도 됩니다</p>
+            </div>
+            <select className="bg-gray-700 rounded-lg px-3 py-2 flex-1 min-w-36 outline-none focus:ring-2 ring-green-500" value={playerId} onChange={(e) => setPlayerId(Number(e.target.value))}>
+              <option value="">MOM 선수 선택 *</option>
+              {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={addMOM} disabled={saving} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
+            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-white px-3 py-2 text-sm">취소</button>
+          </div>
+        </div>
+      )}
+
+      {moms.length === 0 ? (
+        <div className="text-center py-20 text-gray-500"><div className="text-5xl mb-3">🌟</div><p>MOM 기록이 없습니다.</p></div>
+      ) : (
+        <div className="space-y-2">
+          {[...moms].sort((a, b) => b.round - a.round).map((m) => (
+            <div key={m.id} className="bg-gray-800 rounded-xl p-4">
+              {editId === m.id ? (
+                <div className="flex gap-2 flex-wrap items-end">
+                  <input type="number" min={1} className="bg-gray-700 rounded-lg px-3 py-2 w-24 outline-none focus:ring-2 ring-green-500 text-sm" value={editRound} onChange={(e) => setEditRound(e.target.value)} placeholder="회차" />
+                  <input type="date" className="bg-gray-700 rounded-lg px-3 py-2 outline-none focus:ring-2 ring-green-500 text-sm" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                  <select className="bg-gray-700 rounded-lg px-3 py-2 flex-1 min-w-36 outline-none focus:ring-2 ring-green-500 text-sm" value={editPlayerId} onChange={(e) => setEditPlayerId(Number(e.target.value))}>
+                    <option value="">선수 선택</option>
+                    {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <button onClick={saveEdit} disabled={saving} className="bg-green-600 hover:bg-green-500 px-3 py-2 rounded-lg text-sm disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
+                  <button onClick={() => setEditId(null)} className="bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-sm">취소</button>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <span className="text-yellow-400 font-bold text-lg w-12">{m.round}회</span>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-lg">🌟</span>
+                        <span className="font-bold">{m.player.name}</span>
+                      </div>
+                      {m.date && <div className="text-xs text-gray-500">{new Date(m.date).toLocaleDateString("ko-KR")}</div>}
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <div className="flex gap-2">
+                      <button onClick={() => { setEditId(m.id); setEditRound(String(m.round)); setEditDate(m.date ? m.date.split("T")[0] : ""); setEditPlayerId(m.player.id); }} className="text-gray-500 hover:text-white text-sm">✏️</button>
+                      <button onClick={() => deleteMOM(m.id)} className="text-gray-600 hover:text-red-400 text-sm">🗑️</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
