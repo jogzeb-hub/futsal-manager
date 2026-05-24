@@ -374,6 +374,8 @@ function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefr
   const [teamB, setTeamB] = useState<number[]>([]);
   const [mvpId, setMvpId] = useState<number | "">("");
   const [editMatch, setEditMatch] = useState<Match | null>(null);
+  const [editTeamA, setEditTeamA] = useState<number[]>([]);
+  const [editTeamB, setEditTeamB] = useState<number[]>([]);
 
   const load = useCallback(() => {
     setMatchesLoading(true);
@@ -409,11 +411,27 @@ function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefr
         teamAScore: editMatch.teamAScore,
         teamBScore: editMatch.teamBScore,
         mvpId: editMatch.mvp?.id || null,
+        teamA: editTeamA,
+        teamB: editTeamB,
       }),
     });
     setEditMatch(null);
     load(); onRefresh();
     setSaving(false);
+  };
+
+  const cycleEditTeam = (id: number) => {
+    const inA = editTeamA.includes(id);
+    const inB = editTeamB.includes(id);
+    if (!inA && !inB) setEditTeamA((prev) => [...prev, id]);
+    else if (inA) { setEditTeamA((prev) => prev.filter((x) => x !== id)); setEditTeamB((prev) => [...prev, id]); }
+    else setEditTeamB((prev) => prev.filter((x) => x !== id));
+  };
+
+  const openEdit = (m: Match) => {
+    setEditMatch(m);
+    setEditTeamA(m.players.filter((p) => p.team === "A").map((p) => p.player.id));
+    setEditTeamB(m.players.filter((p) => p.team === "B").map((p) => p.player.id));
   };
 
   const deleteMatch = async (id: number) => {
@@ -442,9 +460,10 @@ function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefr
     <div>
       {/* 경기 수정 모달 */}
       {editMatch && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-gray-800 rounded-2xl p-5 w-full max-w-sm shadow-xl space-y-4">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4 py-6">
+          <div className="bg-gray-800 rounded-2xl p-5 w-full max-w-md shadow-xl space-y-4 max-h-full overflow-y-auto">
             <h3 className="font-bold text-lg">경기 수정</h3>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">날짜</label>
@@ -459,6 +478,7 @@ function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefr
                   onChange={(e) => setEditMatch({ ...editMatch, location: e.target.value })} />
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-green-400 mb-1 block">A팀 점수</label>
@@ -473,17 +493,40 @@ function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefr
                   onChange={(e) => setEditMatch({ ...editMatch, teamBScore: Number(e.target.value) })} />
               </div>
             </div>
+
+            <div>
+              <label className="text-xs text-gray-400 mb-2 block">
+                선수 팀 배정 — 클릭: 없음 → <span className="text-green-400">A팀</span> → <span className="text-blue-400">B팀</span> → 없음
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {players.map((p) => {
+                  const inA = editTeamA.includes(p.id);
+                  const inB = editTeamB.includes(p.id);
+                  return (
+                    <button key={p.id} onClick={() => cycleEditTeam(p.id)}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${inA ? "bg-green-700 border-green-500 text-white" : inB ? "bg-blue-700 border-blue-500 text-white" : "bg-gray-700 border-gray-600 text-gray-400"}`}>
+                      {p.name}{inA ? " A" : inB ? " B" : ""}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                A팀 {editTeamA.length}명 · B팀 {editTeamB.length}명
+              </p>
+            </div>
+
             <div>
               <label className="text-xs text-gray-400 mb-1 block">MVP</label>
               <select className="bg-gray-700 rounded-lg px-3 py-2 w-full outline-none focus:ring-2 ring-green-500"
                 value={editMatch.mvp?.id ?? ""}
                 onChange={(e) => setEditMatch({ ...editMatch, mvp: e.target.value ? { id: Number(e.target.value), name: "" } : null })}>
                 <option value="">없음</option>
-                {editMatch.players.map((mp) => (
-                  <option key={mp.player.id} value={mp.player.id}>{mp.player.name}</option>
+                {players.filter((p) => editTeamA.includes(p.id) || editTeamB.includes(p.id)).map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
             </div>
+
             <div className="flex gap-2">
               <button onClick={saveEdit} disabled={saving} className="bg-green-600 hover:bg-green-500 flex-1 py-2 rounded-lg font-medium disabled:opacity-50">{saving ? "저장 중..." : "저장"}</button>
               <button onClick={() => setEditMatch(null)} className="bg-gray-700 hover:bg-gray-600 px-5 py-2 rounded-lg text-sm">취소</button>
@@ -587,7 +630,7 @@ function MatchesTab({ players, onRefresh, isAdmin }: { players: Player[]; onRefr
                   {resultLabel(m)}
                   {isAdmin && (
                     <div className="flex gap-2 justify-end mt-1">
-                      <button onClick={() => setEditMatch(m)} className="text-gray-500 hover:text-white text-xs">✏️ 수정</button>
+                      <button onClick={() => openEdit(m)} className="text-gray-500 hover:text-white text-xs">✏️ 수정</button>
                       <button onClick={() => deleteMatch(m.id)} className="text-gray-600 hover:text-red-400 text-xs">🗑️ 삭제</button>
                     </div>
                   )}

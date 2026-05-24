@@ -7,13 +7,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (denied) return denied;
 
   const { id } = await params;
-  const { date, location, teamAScore, teamBScore, mvpId } = await req.json();
+  const { date, location, teamAScore, teamBScore, mvpId, teamA, teamB } = await req.json();
 
   let result = "draw";
   if (teamAScore > teamBScore) result = "A";
   else if (teamBScore > teamAScore) result = "B";
 
-  const match = await prisma.match.update({
+  await prisma.match.update({
     where: { id: Number(id) },
     data: {
       date: new Date(date),
@@ -23,9 +23,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       result,
       mvpId: mvpId || null,
     },
+  });
+
+  if (teamA !== undefined && teamB !== undefined) {
+    await prisma.matchPlayer.deleteMany({ where: { matchId: Number(id) } });
+    await prisma.matchPlayer.createMany({
+      data: [
+        ...teamA.map((playerId: number) => ({ matchId: Number(id), playerId, team: "A" })),
+        ...teamB.map((playerId: number) => ({ matchId: Number(id), playerId, team: "B" })),
+      ],
+    });
+  }
+
+  const updated = await prisma.match.findUnique({
+    where: { id: Number(id) },
     include: { mvp: true, players: { include: { player: true } } },
   });
-  return NextResponse.json(match);
+  return NextResponse.json(updated);
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
