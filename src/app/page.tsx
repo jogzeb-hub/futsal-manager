@@ -248,23 +248,42 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
   const isSpecial = (p: Player) => p.nickname !== null && SPECIAL_NICKNAMES.includes(p.nickname);
 
   const sorted = [...players].sort((a, b) => {
-    if (sortKey === "matches") return b.totalMatches - a.totalMatches;
+    if (sortKey === "matches") {
+      if (b.totalMatches !== a.totalMatches) return b.totalMatches - a.totalMatches;
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      return winRate(b) - winRate(a);
+    }
     if (sortKey === "wins") {
       if (b.wins !== a.wins) return b.wins - a.wins;
+      const wrDiff = winRate(b) - winRate(a);
+      if (wrDiff !== 0) return wrDiff;
       return b.totalMatches - a.totalMatches;
     }
     if (sortKey === "mom") {
       if (b.momCount !== a.momCount) return b.momCount - a.momCount;
-      return b.totalMatches - a.totalMatches;
+      if (b.totalMatches !== a.totalMatches) return b.totalMatches - a.totalMatches;
+      return b.wins - a.wins;
     }
+    // winRate
     const diff = winRate(b) - winRate(a);
     if (diff !== 0) return diff;
-    return b.totalMatches - a.totalMatches;
+    if (b.totalMatches !== a.totalMatches) return b.totalMatches - a.totalMatches;
+    return b.wins - a.wins;
   });
 
   const regularPlayers = sorted.filter((p) => !isSpecial(p));
   const specialPlayers = sorted.filter((p) => isSpecial(p));
   const finalSorted = [...regularPlayers, ...specialPlayers];
+
+  const primaryValue = (p: Player): number => {
+    if (sortKey === "matches") return p.totalMatches;
+    if (sortKey === "wins") return p.wins;
+    if (sortKey === "mom") return p.momCount;
+    return winRate(p);
+  };
+
+  const rankOf = (p: Player): number =>
+    regularPlayers.filter((x) => primaryValue(x) > primaryValue(p)).length + 1;
 
   const sortBtns: { key: SortKey; label: string }[] = [
     { key: "matches", label: "경기수" },
@@ -273,12 +292,13 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
     { key: "mom", label: "MOM" },
   ];
 
-  const rankIcon = (p: Player, i: number) => {
+  const rankIcon = (p: Player) => {
     if (isSpecial(p)) return <span className="text-xs text-gray-600">-</span>;
-    if (i === 0) return "🥇";
-    if (i === 1) return "🥈";
-    if (i === 2) return "🥉";
-    return `${i + 1}위`;
+    const rank = rankOf(p);
+    if (rank === 1) return "🥇";
+    if (rank === 2) return "🥈";
+    if (rank === 3) return "🥉";
+    return `${rank}위`;
   };
 
   if (loading) return <div className="text-center py-20 text-gray-400">로딩 중...</div>;
@@ -338,7 +358,7 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
                 <div className="p-4">
                   <div className="flex items-center gap-3">
                     {/* 순위 */}
-                    <div className="text-sm w-12 text-center shrink-0 whitespace-nowrap">{rankIcon(p, i)}</div>
+                    <div className="text-sm w-12 text-center shrink-0 whitespace-nowrap">{rankIcon(p)}</div>
 
                     {/* 이름 */}
                     <div className="flex-1 min-w-0">
