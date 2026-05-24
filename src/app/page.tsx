@@ -329,7 +329,7 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
                         <span className="font-bold">{p.name}</span>
                         {p.nickname && <span className="text-gray-400 text-xs">({p.nickname})</span>}
                         {p.hasInjury && (
-                          <span className="text-sm text-red-400">🩹 {p.injuryDays}일째</span>
+                          <span className="text-sm text-red-500 font-bold">✚ {p.injuryDays}일째</span>
                         )}
                         {p.unpaidFines > 0 && <span title="미납 벌금" className="text-sm">💸</span>}
                       </div>
@@ -992,7 +992,7 @@ function InjuryCard({ injury: i, isAdmin, editId, editDesc, editInjuryDate, edit
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-medium">{i.player.name}</span>
-              {!isRecovered && <span>🩹</span>}
+              {!isRecovered && <span className="text-red-500 font-bold">✚</span>}
             </div>
             <div className="text-sm text-gray-400">{i.description}</div>
             <div className="text-xs text-gray-500 mt-0.5">
