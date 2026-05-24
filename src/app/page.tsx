@@ -15,6 +15,7 @@ type Player = {
   totalFines: number;
   unpaidFines: number;
   hasInjury: boolean;
+  injuryDays: number | null;
 };
 
 type Match = {
@@ -327,7 +328,9 @@ function PlayersTab({ players, loading, onRefresh, isAdmin, season }: { players:
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold">{p.name}</span>
                         {p.nickname && <span className="text-gray-400 text-xs">({p.nickname})</span>}
-                        {p.hasInjury && <span title="부상 중" className="text-sm">🩹</span>}
+                        {p.hasInjury && (
+                          <span className="text-sm text-red-400">🩹 {p.injuryDays}일째</span>
+                        )}
                         {p.unpaidFines > 0 && <span title="미납 벌금" className="text-sm">💸</span>}
                       </div>
                       {/* MVP 날짜 */}
